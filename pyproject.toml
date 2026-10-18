@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "filetool"
+version = "1.0.0"
+description = "Native macOS offline desktop file conversion app"
+authors = [{ name = "FileTool" }]
+requires-python = ">=3.12"
+dependencies = [
+    "PySide6>=6.6.0",
+    "Pillow>=10.0.0",
+    "pillow-heif>=0.14.0",
+    "filetype>=1.2.0",
+    "pypdf>=4.0.0",
+    "pdf2docx>=0.5.8",
+    "python-pptx>=0.6.22",
+    "openpyxl>=3.1.2",
+    "pandas>=2.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pyinstaller>=6.3.0",
+]
+
+[project.scripts]
+filetool = "filetool.cli:main"
+filetool-gui = "filetool.app:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["filetool*"]
