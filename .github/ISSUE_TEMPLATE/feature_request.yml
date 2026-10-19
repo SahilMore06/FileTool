@@ -1,0 +1,23 @@
+name: Feature Request
+description: Suggest an idea or new file format/tool for FileTool
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea for a new conversion format, drag gesture, or file action? Let us know!
+  - type: textarea
+    id: feature
+    attributes:
+      label: Feature Description
+      description: What would you like FileTool to do?
+    validations:
+      required: true
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case / Context
+      description: Why would this be helpful to you or other macOS users?
+    validations:
+      required: true

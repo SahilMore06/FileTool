@@ -1,0 +1,43 @@
+name: Bug Report
+description: File a bug report or error in FileTool
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue in FileTool!
+  - type: input
+    id: version
+    attributes:
+      label: FileTool Version
+      description: What version of FileTool are you running? (e.g. v1.0.0)
+      placeholder: v1.0.0
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS Version & Architecture
+      description: What macOS version and hardware are you using? (e.g. macOS 14 Sonoma, Apple Silicon M2)
+      placeholder: macOS 14.5, Apple Silicon M2
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: What happened? Please provide a clear and concise description.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Step-by-step instructions to reproduce the issue.
+      placeholder: |
+        1. Drag file 'sample.pdf'
+        2. Tap Shift within 400ms
+        3. Select 'DOCX'
+    validations:
+      required: true

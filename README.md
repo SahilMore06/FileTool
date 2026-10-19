@@ -1,33 +1,53 @@
 # FileTool for macOS 🍊
 
-A complete, high-performance, **fully offline** desktop file-conversion application inspired by ["Tangerine"](https://tangerineformac.com) for personal use on macOS (Apple Silicon & Intel, macOS 13+).
+<p align="center">
+  <a href="https://github.com/SahilMore06/FileTool/releases/latest"><img src="https://img.shields.io/github/v/release/SahilMore06/FileTool?color=orange&style=for-the-badge&logo=apple" alt="Latest Release"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Platform-macOS%2013%2B-blue?style=for-the-badge&logo=apple" alt="macOS 13+"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Architecture-Apple%20Silicon%20%7C%20Intel-purple?style=for-the-badge" alt="Apple Silicon & Intel"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Privacy-100%25%20Offline-orange?style=for-the-badge" alt="100% Offline"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Tests-141%20Passed-brightgreen?style=for-the-badge&logo=pytest" alt="Tests 141 Passed"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="MIT License"></a>
+</p>
 
-Drag files in, pick an output format, and get converted files instantly. **Everything runs 100% locally on your machine.** Zero network access, zero analytics, zero telemetry, zero cloud APIs, zero auto-updaters.
+<p align="center">
+  <b>A high-performance, fully offline desktop file-conversion & productivity application for macOS inspired by <a href="https://tangerineformac.com">Tangerine</a>.</b><br>
+  <i>Drag any file and tap a modifier key to pop open a radial action wheel directly at your cursor.</i>
+</p>
+
+```
+                       ╭─────────────╮
+                  ╭────┤   JPG 85%   ├────╮
+             ╭────┤    ╰─────────────╯    ├────╮
+             │ WEBP                       PNG  │
+        ╭────┤                                 ├────╮
+        │PDF │        ╭───────────────╮        │HEIC│
+        ├────┤        │  DRAG & DROP  │        ├────┤
+        │AVIF│        │   FILE HERE   │        │TIFF│
+        ╰────┤        ╰───────────────╯        ├────╯
+             │ BMP                        MORE │
+             ╰────┤    ╭─────────────╯    ├────╯
+                  ╰────┤     GIF     ├────╯
+                       ╰─────────────╯
+```
 
 ---
 
-## 💾 Download & Install (For Users)
+## 💾 Download & Install
 
-Get the latest pre-built standalone macOS application directly from the [GitHub Releases](https://github.com/SahilMore06/FileTool/releases):
+Download the standalone macOS application directly from [GitHub Releases](https://github.com/SahilMore06/FileTool/releases/latest):
 
-| Format | Download Link | Description |
-| :--- | :--- | :--- |
-| **macOS DMG (Recommended)** | [Download `FileTool.dmg`](https://github.com/SahilMore06/FileTool/releases/latest) | Drag-and-drop installer for macOS Apple Silicon & Intel |
-| **macOS ZIP Archive** | [Download `FileTool.app.zip`](https://github.com/SahilMore06/FileTool/releases/latest) | Portable standalone application bundle |
+| Installer Format | Size | Description | Download |
+| :--- | :---: | :--- | :---: |
+| **macOS DMG (Recommended)** | ~418 MB | Mountable disk image. Drag `FileTool.app` directly into `/Applications`. | [**Download DMG**](https://github.com/SahilMore06/FileTool/releases/download/v1.0.0/FileTool.dmg) |
+| **macOS ZIP Archive** | ~339 MB | Standalone application bundle archive. Unzip and run anywhere. | [**Download ZIP**](https://github.com/SahilMore06/FileTool/releases/download/v1.0.0/FileTool.app.zip) |
 
-### Quick Install Steps:
-1. **Download** `FileTool.dmg` or `FileTool.app.zip` from the [Releases page](https://github.com/SahilMore06/FileTool/releases).
-2. **Move to Applications**:
-   - For **DMG**: Double-click to mount and drag `FileTool.app` to your `/Applications` folder.
-   - For **ZIP**: Unzip and move `FileTool.app` to `/Applications`.
-3. **First-Time Launch (macOS Gatekeeper)**:
-   Because this is an independent open-source release, macOS may show a standard Gatekeeper notice on first launch:
-   - **Method A**: Right-click (or Control-click) `FileTool.app` in `/Applications` and select **Open**, then click **Open**.
-   - **Method B** (Terminal): Run:
-     ```bash
-     xattr -cr /Applications/FileTool.app
-     ```
-4. **Enjoy**: FileTool lives in your menu bar (with an orange tangerine icon) and is ready anytime you drag any file!
+### ⚡️ Quick Installation:
+1. **Download** `FileTool.dmg` above.
+2. **Double-click** the DMG and drag `FileTool.app` into your `/Applications` folder.
+3. **Launch**:
+   - Double-click `FileTool.app` in `/Applications`.
+   - *First-time Gatekeeper note:* If macOS warns about an open-source build, right-click `FileTool.app`, select **Open**, and click **Open** (or run `xattr -cr /Applications/FileTool.app`).
+4. **Ready!** An orange radial icon appears in your menu bar. Drag any file from Finder and tap `Shift`, `Command`, or `Control` to access your radial wheels.
 
 ---
 
@@ -239,6 +259,33 @@ FileTool features a system-wide radial "drag wheel" overlay. While dragging any 
    - **Escape** cancels.
 6. **Stretch Goal — Finder Enter**:
    - Pressing Enter on a selected file in Finder opens the Convert format wheel under your cursor.
+
+### 📐 System Architecture Flow
+
+```mermaid
+flowchart TD
+    subgraph macOS ["macOS Platform & Input (Zero Accessibility Permissions)"]
+        A["File Drag in Finder / Desktop"] --> B["MacDragMonitor State Machine"]
+        B --> C{"Left Button Down?"}
+        C -->|"Yes (60Hz active)"| D{"Modifier Tap < 400ms?"}
+    end
+
+    subgraph Overlay ["Radial Wheel Overlay"]
+        D -->|"Shift"| E["Convert Wheel (Formats)"]
+        D -->|"Command ⌘"| F["File Tools Wheel"]
+        D -->|"Control ⌃"| G["File Actions Wheel"]
+        E & F & G --> H["WheelWindow (PySide6 QPainter)"]
+        H --> I["Dynamic Hit-Testing & Hover Magnification"]
+    end
+
+    subgraph Runner ["Offline Execution & Safety"]
+        I -->|"Drop on Segment"| J["Center Hub Progress Animation"]
+        J --> K["Async JobRunner (QThreadPool)"]
+        K --> L["Local Converters (ffmpeg/pillow/pandoc/poppler)"]
+        L --> M["Safe Output Generation (Never Overwrites)"]
+        L --> N["Trackpad Haptic Tick & Finder Notification"]
+    end
+```
 
 ---
 
