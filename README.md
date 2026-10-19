@@ -6,6 +6,31 @@ Drag files in, pick an output format, and get converted files instantly. **Every
 
 ---
 
+## 💾 Download & Install (For Users)
+
+Get the latest pre-built standalone macOS application directly from the [GitHub Releases](https://github.com/SahilMore06/FileTool/releases):
+
+| Format | Download Link | Description |
+| :--- | :--- | :--- |
+| **macOS DMG (Recommended)** | [Download `FileTool.dmg`](https://github.com/SahilMore06/FileTool/releases/latest) | Drag-and-drop installer for macOS Apple Silicon & Intel |
+| **macOS ZIP Archive** | [Download `FileTool.app.zip`](https://github.com/SahilMore06/FileTool/releases/latest) | Portable standalone application bundle |
+
+### Quick Install Steps:
+1. **Download** `FileTool.dmg` or `FileTool.app.zip` from the [Releases page](https://github.com/SahilMore06/FileTool/releases).
+2. **Move to Applications**:
+   - For **DMG**: Double-click to mount and drag `FileTool.app` to your `/Applications` folder.
+   - For **ZIP**: Unzip and move `FileTool.app` to `/Applications`.
+3. **First-Time Launch (macOS Gatekeeper)**:
+   Because this is an independent open-source release, macOS may show a standard Gatekeeper notice on first launch:
+   - **Method A**: Right-click (or Control-click) `FileTool.app` in `/Applications` and select **Open**, then click **Open**.
+   - **Method B** (Terminal): Run:
+     ```bash
+     xattr -cr /Applications/FileTool.app
+     ```
+4. **Enjoy**: FileTool lives in your menu bar (with an orange tangerine icon) and is ready anytime you drag any file!
+
+---
+
 ## ✨ Features
 
 - **Tangerine-Inspired Native macOS GUI**:
@@ -182,9 +207,117 @@ You can drag `dist/FileTool.app` into `/Applications` and launch it with Wi-Fi d
 
 ---
 
+## 🎡 Tangerine-Style Drag Wheel Overlay (Phase 6)
+
+FileTool features a system-wide radial "drag wheel" overlay. While dragging any file from anywhere on macOS (Finder, Desktop, Downloads), a quick tap of a modifier key instantly pops up a radial action wheel directly at your cursor. Drop the file onto any segment to execute that action offline with live progress in the center hub!
+
+### How to Use
+
+1. **Start Dragging**: Click and drag any file from Finder, your Desktop, or Downloads.
+2. **Tap a Modifier Key** (press and release within 400 ms):
+   - **`Shift`** ➔ **Convert Wheel**: Output formats from `registry.list_outputs(ext)` tailored to that file type. Shows up to 8 primary segments, and groups extra formats in a second ring on hover (`MORE…`).
+   - **`Command` (`⌘`)** ➔ **File Tools Wheel**: Specialized tools filtered to file type:
+     - **Images**: Compress, Resize, Rotate 90°, Crop, Strip Metadata, Convert to PDF
+     - **Videos**: Compress (H.264), Trim, Split, Strip Metadata
+     - **Audio**: Trim, Compress
+     - **PDFs**: Compress (Ghostscript), Rotate 90°, Split by Pages, Merge PDFs, Strip Metadata
+   - **`Control` (`⌃`)** ➔ **File Actions Wheel**:
+     - **AirDrop**: Direct native sharing via `NSSharingService`
+     - **Float**: Always-on-top high-res inspection thumbnail window
+     - **Copy**: Places file URLs on macOS pasteboard
+     - **Move**: Prompt or move file safely
+     - **Copy Path**: Copies absolute POSIX path to clipboard
+     - **Open in Terminal**: Opens Terminal.app at file's parent directory
+   - *Folders and mixed file selections automatically open the File Actions wheel.*
+3. **Switch Wheels**: Tapping another modifier key while the wheel is open seamlessly rotates and crossfades into that wheel.
+4. **Drop or Cancel**:
+   - **Execute**: Drop on any segment. The ring collapses into the center hub, which turns into an animated circular progress ring. Output is saved next to the original file without overwriting. A native macOS notification with "Reveal in Finder" and a trackpad haptic tick alert you when done.
+   - **Cancel**: Drop in the center hub, press **Escape**, or release outside the wheel.
+5. **Full Keyboard Control**:
+   - **Arrow keys** (Left, Right, Up, Down) highlight segments.
+   - **Enter / Return** applies the highlighted segment.
+   - **Escape** cancels.
+6. **Stretch Goal — Finder Enter**:
+   - Pressing Enter on a selected file in Finder opens the Convert format wheel under your cursor.
+
+---
+
+## 🔒 Permissions & Privacy Architecture
+
+- **No Accessibility Permission Required**:
+  Unlike traditional macro tools that request invasive Accessibility (`AXUIElement`) permissions, FileTool uses macOS Quartz and Cocoa APIs:
+  - `CGEventSourceButtonState` (tracks left mouse button down state)
+  - `CGEventSourceFlagsState` (tracks modifier keys for quick-tap gestures)
+  - `NSEvent.mouseLocation` (tracks cursor coordinates)
+  - `NSPasteboard` (`NSDragPboard`) (reads dragged file references)
+- **Ultra-Low Idle CPU (< 0.1%)**:
+  - Drag detection polls at **10 Hz** while idle.
+  - Dynamically switches to **60 Hz** only while the left mouse button is held down during a file drag.
+- **Accessory Activation Policy (`LSUIElement`)**:
+  - Runs in the background as a menu-bar item without cluttering the macOS Dock.
+  - Overlay window is non-activating (`orderFrontRegardless` / `WA_ShowWithoutActivating`) and stays pinned at `NSStatusWindowLevel` across all Spaces and full-screen apps without stealing focus from Finder.
+
+---
+
+## ⚙️ Settings & Configuration
+
+Open **Preferences** (`Cmd+,` or menu bar icon -> **Preferences…**):
+- **Output Location**: Choose between saving files in the same directory as source or a dedicated folder.
+- **Safety Toggles**: Toggle automatic original file deletion and overwrite protection.
+- **Drag Wheel Options**:
+  - Enable/disable the drag wheel overlay.
+  - Customize trigger keys for Convert, File Tools, and File Actions wheels (Shift, Command, Control, Option).
+- **Launch at Login**:
+  - Automatically launches FileTool minimized in the menu bar at macOS login via `~/Library/LaunchAgents/com.filetool.app.plist`.
+- **Menu Bar Only Mode**:
+  - Toggle between background accessory mode (no Dock icon) and standard application window mode.
+
+---
+
+## 📋 Drag Wheel Manual Test Checklist
+
+Use this checklist to manually verify the drag wheel overlay:
+
+- [ ] **Background Menu Bar & Dock**:
+  - Launch `python app.py --daemon`. Verify the orange radial status icon appears in the macOS menu bar and NO icon appears in the macOS Dock.
+  - Click the menu bar icon -> "Open FileTool" to bring up the main window.
+  - Close the main window with `Cmd+W` or the red button; verify the app remains running in the menu bar.
+- [ ] **Drag Detection (No Accessibility Prompt)**:
+  - Drag a `.png` file from Finder or Desktop.
+  - Verify macOS does NOT show any Accessibility or Screen Recording permission alerts.
+- [ ] **Shift Tap (Convert Wheel)**:
+  - While dragging the file, quickly tap `Shift` (press and release < 400ms).
+  - Verify the Convert wheel appears centered under your cursor within 100ms.
+  - Verify up to 8 formats appear (JPG, WEBP, PDF, HEIC, etc.) with clean icons and labels.
+  - If a file has >8 formats, hover over `MORE…` and verify the secondary outer ring opens.
+- [ ] **Command Tap (Tools Wheel)**:
+  - While dragging, tap `Command`. Verify the File Tools wheel opens with Compress, Resize, Rotate, Crop, and Metadata.
+- [ ] **Control Tap (Actions Wheel)**:
+  - While dragging, tap `Control`. Verify the File Actions wheel opens with AirDrop, Float, Copy, Move, Copy Path, and Open in Terminal.
+- [ ] **Wheel Switching**:
+  - With the Convert wheel open, tap `Command`. Verify smooth crossfade and rotation into the File Tools wheel.
+- [ ] **Segment Hover & Hit Testing**:
+  - Move the cursor across segments. Verify hovered segment expands slightly (1.06x) and brightens, with the center hub showing the hovered action label.
+- [ ] **Drop & Execution**:
+  - Drop on a format (e.g. `JPG`).
+  - Verify the segment flashes, the ring collapses into the hub, and a circular progress ring displays in the center.
+  - Verify a green checkmark appears and a trackpad haptic tick fires.
+  - Verify a macOS notification is delivered: click "Reveal" to highlight the new file in Finder.
+  - Verify output is created next to the source file without overwriting.
+- [ ] **Center Hub Cancel & Outside Release**:
+  - Drag a file, tap `Shift`, move cursor into center hub (<52px) and release. Verify wheel cancels without creating any file.
+- [ ] **Keyboard Controls**:
+  - Open the wheel with `Shift`. Use Left and Right arrow keys to change selected segment. Press `Enter` to apply or `Escape` to cancel.
+- [ ] **Folders & Mixed Selections**:
+  - Drag a folder or multiple files of different types. Tap `Shift`. Verify it automatically displays only the File Actions wheel.
+- [ ] **Launch at Login**:
+  - Open Preferences, toggle "Launch FileTool automatically at login", save. Verify `~/Library/LaunchAgents/com.filetool.app.plist` is created.
+
+---
+
 ## 🧪 Comprehensive Test Matrix
 
-Every single conversion pair has been verified with real sample files in automated test suites:
+Every single conversion pair, geometry calculation, and drag monitor transition has been verified with real sample files in automated test suites:
 
 | Test Suite | Total Tests | Status | Description |
 | :--- | :---: | :---: | :--- |
@@ -195,11 +328,15 @@ Every single conversion pair has been verified with real sample files in automat
 | **`tests/test_docs_office.py`**| 37 | **PASSED** | DOCX, MD, TXT, HTML, RTF, EPUB, PPTX to PDF/images, PDF to DOCX/PPTX/XLSX/images, CSV/TSV/XLSX/ODS |
 | **`tests/test_subtitles_archives.py`** | 9 | **PASSED** | SRT, VTT, TXT conversions, ZIP, TAR, GZ repacking and extraction |
 | **`tests/test_tools.py`** | 11 | **PASSED** | Compress, Resize, Rotate, Crop, Trim, Split, Merge, Strip Metadata |
+| **`tests/test_wheel_geometry.py`** | 8 | **PASSED** | Clock degrees, cartesian conversions, 4 & 8 segments, hub hit test, secondary ring, arrow keys |
+| **`tests/test_drag_monitor.py`** | 11 | **PASSED** | Mouse-down, 4px threshold, Shift/Cmd/Ctrl taps, >400ms timeout, multi-key invalidation, drop, keyboard, zero-latency |
+| **`tests/test_wheel_contents.py`** | 7 | **PASSED** | Format outputs (max 8 + second ring), tools per type (image/video/audio/pdf), actions, folders/mixed |
 | **`tests/test_ui.py`** | 3 | **PASSED** | JobRunner execution, thread cancellation, MainWindow queue |
 | **`tests/test_cli.py`** | 4 | **PASSED** | CLI argument parsing, collision avoidance `" (1)"`, end-to-end run |
-| **TOTAL** | **115 / 115** | **100% PASS** | **All format pairs and tools verified with real files** |
+| **TOTAL** | **141 / 141** | **100% PASS** | **All format pairs, drag monitor, geometry, and tools verified** |
 
 ---
 
 ## 📜 License
 Personal Use License - 100% Local, Offline & Private.
+

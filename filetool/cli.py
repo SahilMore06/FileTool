@@ -6,6 +6,15 @@ import argparse
 import sys
 from pathlib import Path
 
+# Ensure project root is at sys.path[0] and filetool directory is not in sys.path
+# to avoid shadowing the standard library 'platform' module
+_filetool_dir = str(Path(__file__).resolve().parent)
+_project_root = str(Path(__file__).resolve().parent.parent)
+if _filetool_dir in sys.path:
+    sys.path.remove(_filetool_dir)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
 # Ensure all engines are loaded and registered
 import filetool.core.engines.archives  # noqa: F401
 import filetool.core.engines.images  # noqa: F401

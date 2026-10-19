@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QIcon, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
@@ -21,7 +21,9 @@ from PySide6.QtWidgets import (
     QSplitter,
     QStackedWidget,
     QStatusBar,
+    QSystemTrayIcon,
     QTabWidget,
+    QTextEdit,
     QToolBar,
     QVBoxLayout,
     QWidget,
@@ -40,9 +42,65 @@ from filetool.ui.styles import get_stylesheet
 
 logger = logging.getLogger("filetool.ui.main_window")
 
+FORMAT_DESCRIPTIONS: Dict[str, str] = {
+    # Images
+    "png": "PNG Image",
+    "jpg": "JPEG Image",
+    "jpeg": "JPEG Image",
+    "webp": "WebP Image",
+    "heic": "HEIC Image",
+    "avif": "AVIF Image",
+    "tiff": "TIFF Image",
+    "bmp": "Bitmap Image",
+    "svg": "SVG Vector",
+    "gif": "Animated GIF",
+    "ico": "Icon Image",
+    # Documents
+    "pdf": "PDF Document",
+    "docx": "Word Document (.docx)",
+    "pptx": "PowerPoint Deck (.pptx)",
+    "xlsx": "Excel Spreadsheet (.xlsx)",
+    "ods": "OpenDocument (.ods)",
+    "csv": "CSV Spreadsheet",
+    "tsv": "TSV Spreadsheet",
+    "txt": "Plain Text (.txt)",
+    "md": "Markdown Document (.md)",
+    "epub": "EPUB E-Book (.epub)",
+    "html": "HTML Document (.html)",
+    "rtf": "Rich Text Document (.rtf)",
+    # Media
+    "mp4": "MP4 Video",
+    "mov": "QuickTime Video (.mov)",
+    "mkv": "Matroska Video (.mkv)",
+    "webm": "WebM Video (.webm)",
+    "avi": "AVI Video (.avi)",
+    "wmv": "WMV Video (.wmv)",
+    "mp3": "MP3 Audio",
+    "m4a": "AAC Audio (.m4a)",
+    "wav": "WAV Audio",
+    "flac": "FLAC Lossless Audio",
+    "ogg": "Ogg Vorbis Audio",
+    "opus": "Opus Audio",
+    "aiff": "AIFF Audio",
+    "wma": "WMA Audio",
+    # Archives & Subtitles
+    "zip": "ZIP Archive",
+    "tar": "TAR Archive",
+    "gz": "GZ Archive",
+    "srt": "SubRip Subtitles (.srt)",
+    "vtt": "WebVTT Subtitles (.vtt)",
+}
+
+
+def get_friendly_format_name(ext: str) -> str:
+    norm = ext.lower().lstrip(".")
+    return FORMAT_DESCRIPTIONS.get(norm, f"{norm.upper()} File")
+
 
 class MainWindow(QMainWindow):
     """FileTool primary application window."""
+
+    settings_updated = Signal(dict)
 
     def __init__(self):
         super().__init__()
@@ -131,10 +189,12 @@ class MainWindow(QMainWindow):
 
         # "Convert All to..." bulk dropdown
         bulk_label = QLabel("Convert all to:")
-        bulk_label.setStyleSheet("font-weight: 500; font-size: 13px;")
+        bulk_label.setStyleSheet("font-weight: 500; font-size: 13px; color: #8E8E93;")
         toolbar_layout.addWidget(bulk_label)
 
         self.bulk_combo = QComboBox()
+        self.bulk_combo.setObjectName("bulkCombo")
+        self.bulk_combo.setMaxVisibleItems(14)
         self.bulk_combo.setToolTip("Batch change output format for all matching queued files")
         self._update_bulk_combo_formats()
         self.bulk_combo.activated.connect(self._apply_bulk_format)
@@ -260,26 +320,56 @@ class MainWindow(QMainWindow):
         self._update_status()
 
     def _update_bulk_combo_formats(self) -> None:
-        """Populate bulk conversion combo based on queued files."""
+        """Populate bulk conversion combo with clean format descriptions and counts."""
+        self.bulk_combo.blockSignals(True)
         self.bulk_combo.clear()
-        self.bulk_combo.addItem("Select Format…", None)
+        self.bulk_combo.addItem("Select format…", None)
 
-        # Collect unique target outputs across all queued jobs
-        common_targets = set()
-        for job in self.runner.jobs.values():
-            if job.status == JobStatus.PENDING:
-                in_ext = job.src_path.suffix.lower().lstrip(".")
-                for out in registry.list_outputs(in_ext):
-                    common_targets.add(out)
+        pending_jobs = [
+            j for j in self.runner.jobs.values()
+            if j.status == JobStatus.PENDING
+        ]
+        if not pending_jobs:
+            self.bulk_combo.setEnabled(False)
+            self.bulk_combo.blockSignals(False)
+            return
 
-        for out in sorted(common_targets):
-            self.bulk_combo.addItem(f"All eligible to .{out.upper()}", out)
+        self.bulk_combo.setEnabled(True)
+        total_pending = len(pending_jobs)
+
+        # Count how many pending jobs can convert to each target format
+        target_counts: Dict[str, int] = {}
+        for job in pending_jobs:
+            in_ext = job.src_path.suffix.lower().lstrip(".")
+            for out in registry.list_outputs(in_ext):
+                target_counts[out] = target_counts.get(out, 0) + 1
+
+        # Sort: universal matches (applies to ALL pending files) first, then by count descending, then alphabetical
+        def _sort_key(item: Tuple[str, int]):
+            out_ext, count = item
+            is_universal = (count == total_pending)
+            return (0 if is_universal else 1, -count, out_ext)
+
+        for out, count in sorted(target_counts.items(), key=_sort_key):
+            friendly = get_friendly_format_name(out)
+            if total_pending > 1:
+                if count == total_pending:
+                    label = f"{out.upper()}  —  {friendly}  (all {count} files)"
+                else:
+                    label = f"{out.upper()}  —  {friendly}  ({count} of {total_pending} files)"
+            else:
+                label = f"{out.upper()}  —  {friendly}"
+
+            self.bulk_combo.addItem(label, out)
+
+        self.bulk_combo.blockSignals(False)
 
     def _apply_bulk_format(self, index: int) -> None:
         out_ext = self.bulk_combo.currentData()
         if not out_ext:
             return
 
+        applied_count = 0
         for row in self.job_list.rows.values():
             if row.job.status == JobStatus.PENDING:
                 in_ext = row.job.src_path.suffix.lower().lstrip(".")
@@ -287,6 +377,15 @@ class MainWindow(QMainWindow):
                     idx = row.format_picker.findData(out_ext)
                     if idx >= 0:
                         row.format_picker.setCurrentIndex(idx)
+                        applied_count += 1
+
+        if applied_count > 0:
+            friendly = get_friendly_format_name(out_ext)
+            file_word = "file" if applied_count == 1 else "files"
+            self.status_bar.showMessage(
+                f"Changed {applied_count} {file_word} to {out_ext.upper()} ({friendly})",
+                5000,
+            )
 
     def _start_all_jobs(self) -> None:
         # Sync latest options before start
@@ -354,6 +453,14 @@ class MainWindow(QMainWindow):
         self.custom_output_dir = s["output_dir"]
         self.delete_original = s["delete_original"]
         self.overwrite_files = s["overwrite"]
+        self.settings_updated.emit(s)
+
+    def closeEvent(self, event) -> None:
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            event.ignore()
+            self.hide()
+        else:
+            event.accept()
 
     def _show_dep_report(self) -> None:
         report = format_dependency_report()

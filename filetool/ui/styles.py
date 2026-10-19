@@ -136,14 +136,85 @@ def get_stylesheet(dark_mode: bool = True) -> str:
     QComboBox {{
         background-color: {bg_input};
         border: 1px solid {border};
-        border-radius: 7px;
-        padding: 5px 10px;
-        min-width: 100px;
+        border-radius: 8px;
+        padding: 5px 12px;
+        padding-right: 28px;
+        min-width: 90px;
         font-size: 13px;
+        font-weight: 500;
+        color: {text_primary};
+    }}
+
+    QComboBox:hover {{
+        background-color: {bg_card_hover};
+        border-color: {text_secondary};
     }}
 
     QComboBox:focus {{
-        border: 1.5px solid {border_focus};
+        border: 1.5px solid {accent};
+    }}
+
+    QComboBox::drop-down {{
+        subcontrol-origin: padding;
+        subcontrol-position: top right;
+        width: 24px;
+        border-left: none;
+        border-top-right-radius: 8px;
+        border-bottom-right-radius: 8px;
+    }}
+
+    QComboBox::down-arrow {{
+        image: none;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-top: 5px solid {text_secondary};
+        width: 0px;
+        height: 0px;
+        margin-right: 8px;
+    }}
+
+    QComboBox QAbstractItemView {{
+        background-color: {bg_card};
+        border: 1px solid {border};
+        border-radius: 10px;
+        padding: 6px;
+        selection-background-color: {accent};
+        selection-color: #FFFFFF;
+        color: {text_primary};
+        outline: none;
+    }}
+
+    QComboBox QAbstractItemView::item {{
+        min-height: 28px;
+        padding: 6px 12px;
+        border-radius: 6px;
+        color: {text_primary};
+    }}
+
+    QComboBox QAbstractItemView::item:selected {{
+        background-color: {accent};
+        color: #FFFFFF;
+    }}
+
+    QComboBox#bulkCombo {{
+        background-color: {bg_card};
+        border: 1px solid {border};
+        border-radius: 8px;
+        padding: 6px 14px;
+        padding-right: 32px;
+        min-width: 220px;
+        font-weight: 500;
+        font-size: 13px;
+        color: {text_primary};
+    }}
+
+    QComboBox#bulkCombo:hover {{
+        background-color: {bg_card_hover};
+        border-color: {accent};
+    }}
+
+    QComboBox#bulkCombo:focus {{
+        border: 1.5px solid {accent};
     }}
 
     QProgressBar {{

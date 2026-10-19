@@ -1,15 +1,17 @@
-"""Settings and preferences dialog."""
+"""Settings and preferences dialog including Launch-at-Login and Drag Wheel triggers."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QSettings, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QFileDialog,
+    QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -19,9 +21,16 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from filetool.platform.mac_actions import (
+    is_launch_at_login_enabled,
+    set_launch_at_login,
+)
+
+MODIFIER_CHOICES = ["Shift", "Command", "Control", "Option"]
+
 
 class SettingsDialog(QDialog):
-    """Preferences dialog for output folder, safety toggles, and appearance."""
+    """Preferences dialog for output folder, safety toggles, drag wheel, and launch-at-login."""
 
     settings_saved = Signal(dict)
 
@@ -34,17 +43,19 @@ class SettingsDialog(QDialog):
     ):
         super().__init__(parent)
         self.setWindowTitle("FileTool Preferences")
-        self.resize(480, 320)
+        self.resize(520, 480)
         self.custom_dir = custom_out_dir
         self.delete_orig = delete_original
         self.allow_overwrite = overwrite
+
+        self.qsettings = QSettings("FileTool", "FileTool")
         self._init_ui()
 
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setSpacing(16)
+        layout.setSpacing(14)
 
-        # Output Location
+        # 1. Output Location
         loc_box = QGroupBox("Output Location")
         loc_layout = QVBoxLayout(loc_box)
 
@@ -72,7 +83,61 @@ class SettingsDialog(QDialog):
         loc_layout.addLayout(custom_row)
         layout.addWidget(loc_box)
 
-        # Safety & File Preservation
+        # 2. Tangerine-Style Drag Wheel Overlay
+        wheel_box = QGroupBox("Radial Drag Wheel Overlay")
+        wheel_layout = QVBoxLayout(wheel_box)
+
+        self.chk_wheel_enabled = QCheckBox("Enable Tangerine-style drag wheel overlay")
+        self.chk_wheel_enabled.setChecked(
+            self.qsettings.value("wheel_enabled", True, type=bool)
+        )
+        wheel_layout.addWidget(self.chk_wheel_enabled)
+
+        form_layout = QFormLayout()
+        form_layout.setContentsMargins(12, 6, 6, 6)
+        form_layout.setSpacing(8)
+
+        self.combo_convert = QComboBox()
+        self.combo_convert.addItems(MODIFIER_CHOICES)
+        self.combo_convert.setCurrentText(
+            self.qsettings.value("trigger_convert", "Shift", type=str)
+        )
+        form_layout.addRow("Convert Wheel Trigger:", self.combo_convert)
+
+        self.combo_tools = QComboBox()
+        self.combo_tools.addItems(MODIFIER_CHOICES)
+        self.combo_tools.setCurrentText(
+            self.qsettings.value("trigger_tools", "Command", type=str)
+        )
+        form_layout.addRow("File Tools Trigger:", self.combo_tools)
+
+        self.combo_actions = QComboBox()
+        self.combo_actions.addItems(MODIFIER_CHOICES)
+        self.combo_actions.setCurrentText(
+            self.qsettings.value("trigger_actions", "Control", type=str)
+        )
+        form_layout.addRow("File Actions Trigger:", self.combo_actions)
+
+        wheel_layout.addLayout(form_layout)
+        layout.addWidget(wheel_box)
+
+        # 3. System & Startup (Launch at Login / Menu-bar Mode)
+        sys_box = QGroupBox("System & Startup")
+        sys_layout = QVBoxLayout(sys_box)
+
+        self.chk_launch_login = QCheckBox("Launch FileTool automatically at login")
+        self.chk_launch_login.setChecked(is_launch_at_login_enabled())
+        sys_layout.addWidget(self.chk_launch_login)
+
+        self.chk_menu_bar_only = QCheckBox("Run as background menu-bar app (Hide Dock icon)")
+        self.chk_menu_bar_only.setChecked(
+            self.qsettings.value("accessory_mode", True, type=bool)
+        )
+        sys_layout.addWidget(self.chk_menu_bar_only)
+
+        layout.addWidget(sys_box)
+
+        # 4. Safety & File Preservation
         safe_box = QGroupBox("Safety & File Actions")
         safe_layout = QVBoxLayout(safe_box)
 
@@ -86,7 +151,7 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(safe_box)
 
-        # Buttons
+        # 5. Buttons
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
 
@@ -120,10 +185,29 @@ class SettingsDialog(QDialog):
         if self.radio_custom.isChecked() and self.dir_input.text().strip():
             out_dir = Path(self.dir_input.text().strip())
 
+        # Update Launch at login
+        want_launch = self.chk_launch_login.isChecked()
+        if want_launch != is_launch_at_login_enabled():
+            set_launch_at_login(want_launch)
+
+        # Persist preferences
+        self.qsettings.setValue("wheel_enabled", self.chk_wheel_enabled.isChecked())
+        self.qsettings.setValue("trigger_convert", self.combo_convert.currentText())
+        self.qsettings.setValue("trigger_tools", self.combo_tools.currentText())
+        self.qsettings.setValue("trigger_actions", self.combo_actions.currentText())
+        self.qsettings.setValue("accessory_mode", self.chk_menu_bar_only.isChecked())
+
         settings = {
             "output_dir": out_dir,
             "delete_original": self.chk_delete_orig.isChecked(),
             "overwrite": self.chk_overwrite.isChecked(),
+            "wheel_enabled": self.chk_wheel_enabled.isChecked(),
+            "key_mappings": {
+                self.combo_convert.currentText().lower(): "convert",
+                self.combo_tools.currentText().lower(): "tools",
+                self.combo_actions.currentText().lower(): "actions",
+            },
+            "accessory_mode": self.chk_menu_bar_only.isChecked(),
         }
         self.settings_saved.emit(settings)
         self.accept()

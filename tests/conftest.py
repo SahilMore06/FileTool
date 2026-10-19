@@ -11,8 +11,20 @@ import pillow_heif
 # Enable HEIF opener
 pillow_heif.register_heif_opener()
 
+import sys
+from PySide6.QtWidgets import QApplication
+
 from filetool.core.deps import resolver
 from filetool.core.utils import run_command
+
+
+@pytest.fixture(scope="session")
+def qapp():
+    """Ensure QApplication instance exists for widget tests."""
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+    return app
 
 
 @pytest.fixture(scope="session")
