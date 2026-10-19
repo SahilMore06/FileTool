@@ -83,11 +83,11 @@ class SettingsDialog(QDialog):
         loc_layout.addLayout(custom_row)
         layout.addWidget(loc_box)
 
-        # 2. Tangerine-Style Drag Wheel Overlay
+        # 2. Radial Drag Wheel Overlay
         wheel_box = QGroupBox("Radial Drag Wheel Overlay")
         wheel_layout = QVBoxLayout(wheel_box)
 
-        self.chk_wheel_enabled = QCheckBox("Enable Tangerine-style drag wheel overlay")
+        self.chk_wheel_enabled = QCheckBox("Enable radial drag wheel overlay")
         self.chk_wheel_enabled.setChecked(
             self.qsettings.value("wheel_enabled", True, type=bool)
         )

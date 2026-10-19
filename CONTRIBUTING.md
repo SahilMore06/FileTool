@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to **FileTool**!
 
-FileTool is a 100% offline macOS desktop utility inspired by Tangerine for Mac. We welcome contributions that maintain our core principles:
+FileTool is a 100% offline native macOS desktop file utility built to give Mac users a clean, fast, and completely private way to convert, compress, and manage files. We welcome contributions that maintain our core principles:
 1. **100% Offline & Private**: Zero external network requests, zero telemetry, zero analytics.
 2. **High-Performance**: Ultra-low idle CPU (<0.1%), zero UI freezing, multithreaded conversions.
 3. **Safe by Default**: Never overwrite or delete user files without explicit consent.

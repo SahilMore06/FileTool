@@ -1,4 +1,4 @@
-"""Main macOS window for FileTool inspired by Tangerine."""
+"""Main macOS window for FileTool."""
 
 from __future__ import annotations
 
@@ -483,7 +483,7 @@ class MainWindow(QMainWindow):
             self,
             "About FileTool",
             "<h3>FileTool for macOS</h3>"
-            "<p>A local, offline, native desktop file conversion application inspired by Tangerine.</p>"
+            "<p>A powerful, 100% offline, native desktop file utility designed for macOS users.</p>"
             "<p><b>Features:</b> Zero network access, multi-threaded batch conversions, "
             "safe non-overwriting filenames, and native Apple Silicon acceleration.</p>"
             "<p>Version 1.0.0</p>",

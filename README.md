@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <b>A high-performance, fully offline desktop file-conversion & productivity application for macOS inspired by <a href="https://tangerineformac.com">Tangerine</a>.</b><br>
+  <b>A powerful, 100% offline desktop file-conversion & productivity application built specifically for Mac users.</b><br>
   <i>Drag any file and tap a modifier key to pop open a radial action wheel directly at your cursor.</i>
 </p>
 
@@ -29,6 +29,25 @@
                   ╰────┤     GIF     ├────╯
                        ╰─────────────╯
 ```
+
+---
+
+## 💡 Why We Built FileTool (The Problems We Faced on Mac)
+
+Every day, Mac users face frustrating friction with everyday file conversions:
+
+* 🚨 **Privacy Risks & Data Leaks**: Having to upload confidential contracts, financial spreadsheets, or private photos to ad-riddled cloud conversion websites.
+* 🛑 **Paywalls & Artificial Limits**: Getting stopped by "2 free conversions per day", 10MB upload limits, slow queues, or mandatory subscriptions just to convert a simple document.
+* ⏳ **Messy & Fragmented Workflows**: Opening a browser tab, uploading, downloading back to `~/Downloads`, hunting for the file, renaming it, and cleaning up clutter.
+* ⚠️ **Destructive Overwrites**: Clunky tools that overwrite or damage the original file without warning.
+* 🔒 **Invasive Permissions**: Macro utilities that demand full Accessibility (`AXUIElement`) or Screen Recording permissions just to trigger an action.
+
+### 🛡 The Clean Solution: FileTool
+We designed **FileTool** to give Mac users a clean, effortless, and private desktop experience:
+* **100% Local & Offline**: Everything processes directly on your Mac using native Apple Silicon and CPU acceleration. No internet connection needed, zero telemetry.
+* **Instant Radial Drag Wheel**: While dragging any file in Finder or Desktop, tap `Shift`, `Cmd ⌘`, or `Ctrl ⌃` within 400ms to open contextual formats and tools under your cursor.
+* **Safe by Default**: Automatically appends `filename (1).ext` if a duplicate exists—your original files are always protected.
+* **Zero Invasive Permissions**: Uses macOS Quartz event sources with **no Accessibility or Screen Recording permissions required**.
 
 ---
 
@@ -53,7 +72,7 @@ Download the standalone macOS application directly from [GitHub Releases](https:
 
 ## ✨ Features
 
-- **Tangerine-Inspired Native macOS GUI**:
+- **Clean, Modern macOS GUI & Menu Bar App**:
   - Big, responsive drop zone accepting multiple files and recursive directory trees.
   - Native file dialog via `Cmd+O`.
   - Smart per-file format pickers populated strictly with supported converters.
@@ -227,7 +246,7 @@ You can drag `dist/FileTool.app` into `/Applications` and launch it with Wi-Fi d
 
 ---
 
-## 🎡 Tangerine-Style Drag Wheel Overlay (Phase 6)
+## 🎡 Contextual Radial Drag Wheel Overlay
 
 FileTool features a system-wide radial "drag wheel" overlay. While dragging any file from anywhere on macOS (Finder, Desktop, Downloads), a quick tap of a modifier key instantly pops up a radial action wheel directly at your cursor. Drop the file onto any segment to execute that action offline with live progress in the center hub!
 

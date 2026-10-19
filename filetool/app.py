@@ -30,7 +30,7 @@ logger = logging.getLogger("filetool.app")
 
 
 def create_tray_icon() -> QIcon:
-    """Create a high-DPI template menu-bar icon (tangerine radial slice)."""
+    """Create a high-DPI template menu-bar icon (radial slice)."""
     pix = QPixmap(36, 36)
     pix.fill(Qt.transparent)
     painter = QPainter(pix)
@@ -38,7 +38,7 @@ def create_tray_icon() -> QIcon:
 
     # Stylized radial wheel / circle
     painter.setPen(Qt.NoPen)
-    painter.setBrush(QColor(255, 149, 0))  # Tangerine orange
+    painter.setBrush(QColor(255, 149, 0))  # Accent orange
     painter.drawEllipse(4, 4, 28, 28)
 
     painter.setBrush(QColor(30, 30, 30))

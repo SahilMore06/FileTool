@@ -1,4 +1,4 @@
-"""Tangerine-inspired macOS native stylesheets for light and dark modes."""
+"""Polished macOS native stylesheets for light and dark modes."""
 
 from __future__ import annotations
 

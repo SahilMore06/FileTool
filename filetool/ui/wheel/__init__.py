@@ -1,4 +1,4 @@
-"""Tangerine-style radial drag wheel UI components."""
+"""Radial drag wheel overlay UI components."""
 
 from filetool.ui.wheel.geometry import SegmentArc, HitResult, hit_test, layout_segments
 from filetool.ui.wheel.animations import (

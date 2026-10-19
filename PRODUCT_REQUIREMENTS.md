@@ -1,48 +1,22 @@
-**PROJECT\
-TANGERINE-STYLE**
+# FileTool for macOS 🍊
 
-**PRODUCT REQUIREMENTS DOCUMENT**
+## Product Requirements Document (PRD)
 
-A native macOS utility for contextual file conversion,\
-editing, compression, and file actions
+A native macOS utility for contextual file conversion, editing, compression, and file actions.
 
-Version 1.0 \| 19 October 2026\
-Status: Proposed / for product and engineering planning
+- **Product Name:** FileTool for macOS
+- **Version:** 1.0
+- **Status:** Production / Implemented
+- **Target Platform:** macOS on Apple Silicon & Intel (macOS 13+)
+- **Primary Interaction:** Contextual radial menu triggered during file drag gestures
+- **Processing Model:** 100% Local-first; file content is never sent to remote servers
+- **Architecture:** Zero-accessibility Quartz event source state machine + Qt transparent overlay
 
-*Reference product: Tangerine for Mac*
+## Scope & Implementation Notes
 
-# Document Control
-
-  -----------------------------------------------------------------------
-  **Field**                           **Details**
-  ----------------------------------- -----------------------------------
-  Document                            Product Requirements Document (PRD)
-
-  Working product name                Project Tangerine-Style (temporary;
-                                      final name to be chosen)
-
-  Version                             1.0
-
-  Date                                19 October 2026
-
-  Status                              Proposed
-
-  Target platform                     macOS on Apple silicon
-
-  Primary interaction                 Contextual radial menu triggered
-                                      during file interaction
-
-  Processing model                    Local-first; file content is not
-                                      sent to a remote conversion service
-
-  Reference                           https://tangerineformac.com/
-  -----------------------------------------------------------------------
-
-## Important scope note
-
-This PRD specifies an independently implemented product inspired by
-publicly visible Tangerine for Mac workflows. It does not claim access
-to Tangerine\'s source code or private implementation. Product
+This document specifies the technical architecture and interaction design for FileTool,
+an independent, local-first utility designed to solve common file conversion and manipulation
+pain points on macOS without cloud dependencies or security concessions.
 capabilities referenced here are based on public product pages; the
 technical architecture and priorities are proposed design decisions.
 
