@@ -4,6 +4,7 @@
 
 [![CI](https://github.com/SahilMore06/Fluxora/actions/workflows/ci.yml/badge.svg)](https://github.com/SahilMore06/Fluxora/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/SahilMore06/Fluxora?label=download)](https://github.com/SahilMore06/Fluxora/releases/latest)
+[![GitHub Package](https://img.shields.io/badge/ghcr.io-fluxora-24292F?logo=docker&logoColor=white)](https://github.com/SahilMore06/Fluxora/pkgs/container/fluxora)
 [![Platform](https://img.shields.io/badge/macOS-13%2B%20(Apple%20Silicon%20%26%20Intel)-222325)](#download-and-installation)
 [![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E87410)](LICENSE)
@@ -77,6 +78,17 @@ Manual virtual environment setup:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
+```
+
+### Option 3: Docker / GitHub Packages (Headless CLI)
+
+Multi-arch container images (`linux/amd64` and `linux/arm64`) package the `fluxora` CLI with Python engines and local converters (`ffmpeg`, `imagemagick`, `pandoc`, `poppler`, `ghostscript`, `7-Zip`, and headless `LibreOffice`):
+
+```bash
+docker pull ghcr.io/sahilmore06/fluxora:latest
+
+# Convert files in the current directory without installing local tools
+docker run --rm -v "$PWD:/work" ghcr.io/sahilmore06/fluxora:latest photo.png --to jpg --quality 90
 ```
 
 ## Finder Drag Wheel
