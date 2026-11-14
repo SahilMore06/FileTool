@@ -401,6 +401,7 @@ def test_onboarding_starter_animation_haptic_sandbox_and_consent(qapp, tmp_path:
 
     monkeypatch.setattr(ob_mod, "trigger_haptic_tick", _capture_haptic)
     monkeypatch.setattr(mac_actions, "trigger_haptic_tick", _capture_haptic)
+    monkeypatch.setattr(ob_mod, "should_reduce_motion", lambda: False)
 
     qs = QSettings(str(tmp_path / "onboarding.ini"), QSettings.IniFormat)
     win = ob_mod.OnboardingWindow(dark_mode=False, accent_key="amber", first_boot=True, qsettings=qs)

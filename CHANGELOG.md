@@ -2,6 +2,15 @@
 
 All notable changes to Fluxora are documented in this file.
 
+## [1.1.1] - 2026-11-14
+
+### Changed
+- Rebranded application identity, repository, macOS `.app`/`.dmg` packaging, and launch showcase to **Fluxora – Intelligent File Conversion & Productivity Suite** (`github.com/SahilMore06/Fluxora`).
+- Upgraded GitHub README showcase to crisp native `1920x1080` inline Animated WebP (removing downloadable `.mp4`/`.gif` showcase links from the repository).
+
+### Fixed
+- Stabilized `test_onboarding_starter_animation_haptic_sandbox_and_consent` on macOS CI runners with Accessibility Reduce Motion active.
+
 ## [1.1.0] - 2026-11-14
 
 ### Added
