@@ -1,4 +1,4 @@
-"""Custom UI widgets and geometric vector icons for FileTool."""
+"""Custom UI widgets and geometric vector icons for Fluxora."""
 
 from __future__ import annotations
 
@@ -578,7 +578,7 @@ def draw_brand_emblem(
     done_t: float = 0.0,
     monochrome: bool = False,
 ) -> None:
-    """Paint FileTool's sculpted 6-petal radial aperture emblem inside `rect`."""
+    """Paint Fluxora's sculpted 6-petal radial aperture emblem inside `rect`."""
     if not painter.isActive():
         return
 
@@ -719,7 +719,7 @@ def create_brand_pixmap(
     done_t: float = 0.0,
     monochrome: bool = False,
 ) -> QPixmap:
-    """Render the FileTool radial emblem into a Retina-ready QPixmap."""
+    """Render the Fluxora radial emblem into a Retina-ready QPixmap."""
     app_id = id(QCoreApplication.instance())
     rot_q = round(rotation_deg % 360.0, 1)
     hover_q = round(hover_t, 2)
@@ -747,7 +747,7 @@ def _cached_brand_icon(app_id: int, accent_color: str) -> QIcon:
 
 
 def create_brand_icon(accent_color: str = "#F28A32") -> QIcon:
-    """Build a multi-resolution FileTool QIcon for window and app branding."""
+    """Build a multi-resolution Fluxora QIcon for window and app branding."""
     return _cached_brand_icon(id(QCoreApplication.instance()), accent_color)
 
 

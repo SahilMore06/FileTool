@@ -3,7 +3,7 @@
 
 set -euo pipefail
 
-echo "Installing FileTool dependencies for macOS..."
+echo "Installing Fluxora dependencies for macOS..."
 
 if command -v brew >/dev/null 2>&1; then
     BREW_BIN=$(command -v brew)

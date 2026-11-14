@@ -1,1 +1,1 @@
-"""User interface package for FileTool."""
+"""User interface package for Fluxora."""

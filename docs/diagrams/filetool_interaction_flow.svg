@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1140 440" width="1140" height="440" role="img" aria-labelledby="diagram-title-flow diagram-desc-flow" id="filetool_interaction_flow-root">
-        <title id="diagram-title-flow">FileTool Radial Drag and Drop Interaction Flow</title>
+        <title id="diagram-title-flow">Fluxora Radial Drag and Drop Interaction Flow</title>
         <desc id="diagram-desc-flow">Six-step chronological lifecycle from drag trigger to output delivery</desc>
         <defs>
       <style>

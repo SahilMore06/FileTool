@@ -1,16 +1,16 @@
 # Privacy Policy
 
-FileTool runs offline on your Mac. Your files never leave your machine.
+Fluxora runs offline on your Mac. Your files never leave your machine.
 
 ## Data collection
 
-- FileTool makes zero network requests for conversions, updates, telemetry, crash reports, or usage analytics.
-- FileTool does not set cookies, collect identifiers, or transmit file names, file contents, or conversion history to any server.
+- Fluxora makes zero network requests for conversions, updates, telemetry, crash reports, or usage analytics.
+- Fluxora does not set cookies, collect identifiers, or transmit file names, file contents, or conversion history to any server.
 
 ## Local storage on macOS
 
-- Preferences (theme mode, accent preset, modifier trigger keys, menu-bar mode, output directory, overwrite flag, and delete-original option) are saved locally in macOS `QSettings` (`FileTool` / `FileTool`).
-- Optional `Launch at Login` writes a user LaunchAgent plist at `~/Library/LaunchAgents/com.filetool.app.plist` and removes it when switched off.
+- Preferences (theme mode, accent preset, modifier trigger keys, menu-bar mode, output directory, overwrite flag, and delete-original option) are saved locally in macOS `QSettings` (`Fluxora` / `Fluxora`).
+- Optional `Launch at Login` writes a user LaunchAgent plist at `~/Library/LaunchAgents/com.fluxora.app.plist` and removes it when switched off.
 - Converted files are saved beside each source file by default (or to your chosen local output directory) with numeric suffixes (`name (1).ext`) unless overwrite mode is enabled.
 
 ## Finder Drag Wheel

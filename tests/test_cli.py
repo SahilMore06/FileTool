@@ -1,4 +1,4 @@
-"""Tests for FileTool CLI interface."""
+"""Tests for Fluxora CLI interface."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def test_cli_check_deps(capsys):
     code = main(["--check-deps"])
     captured = capsys.readouterr()
     assert code == 0
-    assert "FileTool External Dependency Health:" in captured.out
+    assert "Fluxora External Dependency Health:" in captured.out
 
 
 def test_cli_list_formats(samples_dir: Path, capsys):

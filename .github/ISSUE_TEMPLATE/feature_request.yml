@@ -1,5 +1,5 @@
 name: Feature Request
-description: Suggest an idea or new file format/tool for FileTool
+description: Suggest an idea or new file format/tool for Fluxora
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
@@ -11,7 +11,7 @@ body:
     id: feature
     attributes:
       label: Feature Description
-      description: What would you like FileTool to do?
+      description: What would you like Fluxora to do?
     validations:
       required: true
   - type: textarea

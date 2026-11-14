@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to FileTool are documented in this file.
+All notable changes to Fluxora are documented in this file.
 
 ## [1.1.0] - 2026-11-14
 
@@ -23,4 +23,4 @@ All notable changes to FileTool are documented in this file.
 - Cursor-tracking radial drag wheel for Finder (`Shift` Convert, `Command` Quick Tools, `Control` macOS Actions) without Accessibility permissions.
 - PySide6 batch conversion window with `QThreadPool` runner, History panel, Settings persistence, and encoding options.
 - 266 conversion pairs across 47 input formats and 39 outputs through Pillow, FFmpeg, ImageMagick, Ghostscript, Pandoc, LibreOffice, and 7-Zip.
-- Full CLI interface (`filetool`), macOS Finder Quick Action installer, and PyInstaller `.app` / `.dmg` build script.
+- Full CLI interface (`fluxora` / `filetool`), macOS Finder Quick Action installer, and PyInstaller `.app` / `.dmg` build script.

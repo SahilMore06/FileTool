@@ -1,4 +1,4 @@
-"""Simple native FileTool window coordinating conversion queue, history, and settings."""
+"""Simple native Fluxora window coordinating conversion queue, history, and settings."""
 
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("FileTool")
+        self.setWindowTitle("Fluxora")
         self.resize(880, 560)
         self.setMinimumSize(720, 480)
         self.setAcceptDrops(True)
@@ -65,7 +65,7 @@ class MainWindow(QMainWindow):
         self._done_reset_timer.setSingleShot(True)
         self._done_reset_timer.timeout.connect(self._reset_brand_pill)
 
-        self.qsettings = QSettings("FileTool", "FileTool")
+        self.qsettings = QSettings("Fluxora", "Fluxora")
         self.dark_mode: bool = self.qsettings.value("dark_mode", False, type=bool)
         accent_val = self.qsettings.value("accent_preset", "amber", type=str)
         self.accent_key: str = accent_val if accent_val in ACCENT_PRESETS else "amber"
@@ -115,7 +115,7 @@ class MainWindow(QMainWindow):
 
         accent_hex = ACCENT_PRESETS[self.accent_key]["accent"]
         self.logo = LogoWidget(size=28, accent_color=accent_hex)
-        title = QLabel("FileTool")
+        title = QLabel("Fluxora")
         title.setObjectName("appTitle")
         self.brand_pill = QLabel("Offline")
         self.brand_pill.setObjectName("brandStatusPill")

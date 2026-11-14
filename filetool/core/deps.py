@@ -247,7 +247,7 @@ def get_missing_dependencies() -> list[ToolStatus]:
 def format_dependency_report() -> str:
     """Generate a clean ASCII report of system tools."""
     results = check_dependencies()
-    lines = ["FileTool External Dependency Health:", "====================================="]
+    lines = ["Fluxora External Dependency Health:", "===================================="]
     for name, s in results.items():
         status_str = "✔ FOUND" if s.available else "✖ MISSING"
         path_str = f"({s.path})" if s.path else f"-> Install: `{s.install_command}`"

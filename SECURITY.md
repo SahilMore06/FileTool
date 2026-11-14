@@ -9,7 +9,7 @@
 
 ## Security Model
 
-FileTool is built for local execution on macOS:
+Fluxora is built for local execution on macOS:
 
 - **Offline Execution**: Zero outbound HTTP requests, update checks, telemetry beacons, or analytics collectors.
 - **No Shell Interpolation**: External CLI engines (`ffmpeg`, `magick`, `pandoc`, `pdftoppm`, `gs`, `soffice`, `7zz`) execute strictly with argument lists (`shell=False`).
@@ -18,4 +18,4 @@ FileTool is built for local execution on macOS:
 
 ## Reporting a Vulnerability
 
-If you discover a security bug or unsafe subprocess handling, please report it privately through [GitHub Security Advisories](https://github.com/SahilMore06/FileTool/security/advisories/new) instead of opening a public issue with exploit details. Include steps to reproduce and affected versions.
+If you discover a security bug or unsafe subprocess handling, please report it privately through [GitHub Security Advisories](https://github.com/SahilMore06/Fluxora/security/advisories/new) instead of opening a public issue with exploit details. Include steps to reproduce and affected versions.

@@ -1,4 +1,4 @@
-"""CLI interface for FileTool (python -m filetool.cli input.heic --to jpg)."""
+"""CLI interface for Fluxora (`fluxora input.heic --to jpg` or `python -m filetool.cli`)."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from filetool.core.utils import get_unique_output_path, setup_logging
 
 def main(args: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="filetool",
+        prog="fluxora",
         description="Native offline file conversion for macOS (Apple Silicon).",
     )
 

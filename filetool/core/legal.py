@@ -1,4 +1,4 @@
-"""Structured offline Privacy Policy and Terms & Conditions content for FileTool."""
+"""Structured offline Privacy Policy and Terms & Conditions content for Fluxora."""
 
 from __future__ import annotations
 
@@ -23,16 +23,16 @@ PRIVACY_SECTIONS: List[Tuple[str, List[str]]] = [
     (
         "Offline by Architecture",
         [
-            "FileTool executes every conversion, compression, resize, split, merge, and metadata strip strictly on your Mac.",
-            "FileTool makes zero network requests for conversions, updates, telemetry, crash reports, or usage analytics.",
-            "FileTool sets no cookies, collects no device or user identifiers, and transmits no filenames or conversion history to any server.",
+            "Fluxora executes every conversion, compression, resize, split, merge, and metadata strip strictly on your Mac.",
+            "Fluxora makes zero network requests for conversions, updates, telemetry, crash reports, or usage analytics.",
+            "Fluxora sets no cookies, collects no device or user identifiers, and transmits no filenames or conversion history to any server.",
         ],
     ),
     (
         "Local Preferences and Disk Storage",
         [
-            "Settings (appearance theme, accent color, wheel trigger keys, menu-bar mode, output directory, overwrite flag, and legal acceptance) are stored locally in macOS QSettings under the FileTool domain.",
-            "Turning on Launch at Login creates ~/Library/LaunchAgents/com.filetool.app.plist locally on your account and removes it when turned off.",
+            "Settings (appearance theme, accent color, wheel trigger keys, menu-bar mode, output directory, overwrite flag, and legal acceptance) are stored locally in macOS QSettings under the Fluxora domain.",
+            "Turning on Launch at Login creates ~/Library/LaunchAgents/com.fluxora.app.plist locally on your account and removes it when turned off.",
             "Converted outputs are written beside each source file by default, or to your chosen local output directory.",
         ],
     ),
@@ -49,7 +49,7 @@ TERMS_SECTIONS: List[Tuple[str, List[str]]] = [
     (
         "1. Open-Source MIT License",
         [
-            "FileTool is licensed under the MIT License (Copyright (c) 2026 SahilMore06). You may use, copy, modify, merge, publish, and distribute the software subject to the MIT License notice in LICENSE.",
+            "Fluxora is licensed under the MIT License (Copyright (c) 2026 SahilMore06). You may use, copy, modify, merge, publish, and distribute the software subject to the MIT License notice in LICENSE.",
         ],
     ),
     (
@@ -62,7 +62,7 @@ TERMS_SECTIONS: List[Tuple[str, List[str]]] = [
     (
         "3. Local Third-Party Engines",
         [
-            "FileTool orchestrates local tools installed on your Mac including Pillow, ffmpeg, ImageMagick (magick), Pandoc, Poppler (pdftoppm, pdftotext), Ghostscript (gs), 7-Zip (7zz), and LibreOffice (soffice).",
+            "Fluxora orchestrates local tools installed on your Mac including Pillow, ffmpeg, ImageMagick (magick), Pandoc, Poppler (pdftoppm, pdftotext), Ghostscript (gs), 7-Zip (7zz), and LibreOffice (soffice).",
             "Each third-party engine remains subject to its own open-source license and system availability.",
         ],
     ),
@@ -78,11 +78,11 @@ TERMS_SECTIONS: List[Tuple[str, List[str]]] = [
 def render_legal_html(doc_key: str, tokens: Dict[str, str]) -> str:
     """Render styled HTML for either ``'privacy'`` or ``'terms'`` using theme tokens."""
     if doc_key == "privacy":
-        title = "FileTool Privacy Policy"
+        title = "Fluxora Privacy Policy"
         lead = "Your files never leave your Mac. Zero uploads, zero telemetry, zero tracking."
         sections = PRIVACY_SECTIONS
     else:
-        title = "FileTool Terms & Conditions"
+        title = "Fluxora Terms & Conditions"
         lead = "MIT open-source terms, local file safety defaults, and \"AS IS\" software notice."
         sections = TERMS_SECTIONS
 

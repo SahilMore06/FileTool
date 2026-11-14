@@ -30,7 +30,7 @@ def test_resolver_custom_paths(tmp_path):
 def test_dependency_report_string():
     """Verify format_dependency_report returns readable health text."""
     report = format_dependency_report()
-    assert "FileTool External Dependency Health:" in report
+    assert "Fluxora External Dependency Health:" in report
     assert "ffmpeg" in report
     assert "magick" in report
     assert "soffice" in report

@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "filetool"
+name = "fluxora"
 version = "1.1.0"
-description = "Native macOS offline file converter, Finder radial drag wheel, batch desktop app, and CLI"
+description = "Fluxora – Intelligent File Conversion & Productivity Suite for macOS"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Sahil More" }]
@@ -53,13 +53,15 @@ dev = [
 ]
 
 [project.scripts]
+fluxora = "filetool.cli:main"
+fluxora-gui = "filetool.app:main"
 filetool = "filetool.cli:main"
 filetool-gui = "filetool.app:main"
 
 [project.urls]
-Homepage = "https://github.com/SahilMore06/FileTool"
-Repository = "https://github.com/SahilMore06/FileTool"
-Issues = "https://github.com/SahilMore06/FileTool/issues"
+Homepage = "https://github.com/SahilMore06/Fluxora"
+Repository = "https://github.com/SahilMore06/Fluxora"
+Issues = "https://github.com/SahilMore06/Fluxora/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

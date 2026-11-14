@@ -1,4 +1,4 @@
-"""GUI and Background Menu-Bar entry point for FileTool."""
+"""GUI and Background Menu-Bar entry point for Fluxora."""
 
 from __future__ import annotations
 
@@ -211,7 +211,7 @@ def needs_first_boot_onboarding(qsettings: QSettings) -> bool:
 def main() -> int:
     setup_logging()
 
-    parser = argparse.ArgumentParser(description="FileTool - Native macOS file tool")
+    parser = argparse.ArgumentParser(description="Fluxora — Intelligent File Conversion & Productivity Suite")
     parser.add_argument("--daemon", "--background", dest="daemon", action="store_true", help="Start minimized in menu-bar")
     parser.add_argument("--intro", action="store_true", help="Open starter install animation, tour, and Terms & Privacy")
     parser.add_argument(
@@ -226,11 +226,11 @@ def main() -> int:
     )
 
     app = QApplication(sys.argv)
-    app.setApplicationName("FileTool")
-    app.setApplicationDisplayName("FileTool")
+    app.setApplicationName("Fluxora")
+    app.setApplicationDisplayName("Fluxora")
     app.setQuitOnLastWindowClosed(False)
 
-    qsettings = QSettings("FileTool", "FileTool")
+    qsettings = QSettings("Fluxora", "Fluxora")
     if args.reset_onboarding:
         for key in ("onboarding_completed", "legal_accepted", "legal_accepted_version", "legal_accepted_at"):
             qsettings.remove(key)
@@ -339,9 +339,9 @@ def main() -> int:
             progress_pct=pct if active_jobs > 0 else None,
         )
         if active_jobs > 0:
-            tray.setToolTip(f"FileTool — Converting {active_jobs} file(s) ({pct}%)")
+            tray.setToolTip(f"Fluxora — Converting {active_jobs} file(s) ({pct}%)")
         else:
-            tray.setToolTip("FileTool — Drag files & tap Shift / Cmd / Ctrl for Drag Wheel")
+            tray.setToolTip("Fluxora — Drag files & tap Shift / Cmd / Ctrl for Drag Wheel")
 
     window.settings_updated.connect(on_settings_saved)
     window.theme_updated.connect(on_theme_updated)
@@ -426,7 +426,7 @@ def main() -> int:
             popover.show_at(tray.geometry())
 
     tray.activated.connect(on_tray_activated)
-    tray.setToolTip("FileTool — Drag files & tap Shift / Cmd / Ctrl for Drag Wheel")
+    tray.setToolTip("Fluxora — Drag files & tap Shift / Cmd / Ctrl for Drag Wheel")
     tray.show()
     QTimer.singleShot(150, lambda: tray_animator.pulse_turn(180.0, 520))
 

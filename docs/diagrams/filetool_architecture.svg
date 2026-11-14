@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 640" width="1100" height="640" role="img" aria-labelledby="diagram-title-arch diagram-desc-arch" id="filetool_architecture-root">
-        <title id="diagram-title-arch">FileTool for macOS System Architecture</title>
+        <title id="diagram-title-arch">Fluxora for macOS System Architecture</title>
         <desc id="diagram-desc-arch">Zero-accessibility Quartz event tap, contextual radial overlay, and async processing engine</desc>
         <defs>
       <style>

@@ -18,14 +18,14 @@ from typing import Generator, Sequence
 _output_path_lock = threading.Lock()
 _reserved_output_paths: set[Path] = set()
 
-LOG_DIR = Path.home() / "Library" / "Logs" / "FileTool"
-LOG_FILE = LOG_DIR / "filetool.log"
+LOG_DIR = Path.home() / "Library" / "Logs" / "Fluxora"
+LOG_FILE = LOG_DIR / "fluxora.log"
 
 logger = logging.getLogger("filetool")
 
 
 def setup_logging(level: int = logging.INFO) -> logging.Logger:
-    """Configure logging to ~/Library/Logs/FileTool/filetool.log and stderr."""
+    """Configure logging to ~/Library/Logs/Fluxora/fluxora.log and stderr."""
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     logger.setLevel(level)
 

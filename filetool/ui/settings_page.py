@@ -62,7 +62,7 @@ class SettingsPage(QScrollArea):
         self.setFrameShape(QFrame.NoFrame)
         self._dark_mode = dark_mode
         self._accent_key = accent_key if accent_key in ACCENT_PRESETS else "amber"
-        self.qsettings = QSettings("FileTool", "FileTool")
+        self.qsettings = QSettings("Fluxora", "Fluxora")
         self._switches: list[IOSSwitch] = []
         self._swatch_btns: Dict[str, QPushButton] = {}
         self._dep_rows: Dict[str, QLabel] = {}
@@ -156,14 +156,14 @@ class SettingsPage(QScrollArea):
         self.sw_accessory = self._add_switch_row(
             wheel_lay,
             "Run in Menu Bar Only",
-            "Hide Dock icon and keep FileTool accessible from the macOS menu bar",
+            "Hide Dock icon and keep Fluxora accessible from the macOS menu bar",
             self.qsettings.value("accessory_mode", True, type=bool),
             accent_hex,
         )
         self.sw_login = self._add_switch_row(
             wheel_lay,
             "Launch at Login",
-            "Start FileTool automatically when signing in to macOS",
+            "Start Fluxora automatically when signing in to macOS",
             is_launch_at_login_enabled(),
             accent_hex,
         )
@@ -205,7 +205,7 @@ class SettingsPage(QScrollArea):
         self.sw_overwrite = self._add_switch_row(
             out_lay,
             "Overwrite Existing Output Files",
-            "When off, FileTool appends numeric suffixes to avoid overwriting files",
+            "When off, Fluxora appends numeric suffixes to avoid overwriting files",
             self.qsettings.value("overwrite_files", False, type=bool),
             accent_hex,
         )

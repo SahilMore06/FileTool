@@ -226,7 +226,7 @@ class _PopoverActionButton(QPushButton):
 
 
 class TrayPopover(QWidget):
-    """Animated translucent menu-bar card for FileTool."""
+    """Animated translucent menu-bar card for Fluxora."""
 
     open_requested = Signal()
     preferences_requested = Signal()
@@ -279,7 +279,7 @@ class TrayPopover(QWidget):
 
         title_col = QVBoxLayout()
         title_col.setSpacing(1)
-        self.title_lbl = QLabel("FileTool")
+        self.title_lbl = QLabel("Fluxora")
         self.title_lbl.setObjectName("trayTitle")
         self.subtitle_lbl = QLabel("Offline · Ready on macOS")
         self.subtitle_lbl.setObjectName("traySubtitle")
@@ -336,7 +336,7 @@ class TrayPopover(QWidget):
 
         self.btn_open = _PopoverActionButton(
             "window",
-            "Open FileTool",
+            "Open Fluxora",
             "Queue, history & options",
             "⌘O",
         )
@@ -360,7 +360,7 @@ class TrayPopover(QWidget):
 
         self.btn_quit = _PopoverActionButton(
             "power",
-            "Quit FileTool",
+            "Quit Fluxora",
             "Stop background drag monitor",
             "⌘Q",
             danger=True,

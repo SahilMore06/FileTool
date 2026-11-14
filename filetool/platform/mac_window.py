@@ -65,7 +65,7 @@ def configure_overlay_window(widget: QWidget) -> bool:
 
 def show_without_activating(widget: QWidget) -> None:
     """
-    Display window without focus stealing or activating FileTool.
+    Display window without focus stealing or activating Fluxora.
     Preserves active focus in Finder, Desktop, etc.
     """
     widget.setAttribute(Qt.WA_ShowWithoutActivating, True)

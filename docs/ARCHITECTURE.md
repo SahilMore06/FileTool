@@ -1,6 +1,6 @@
-# FileTool Architecture
+# Fluxora Architecture
 
-FileTool separates platform-native macOS integration, format/tool execution engines, and the PySide6 desktop interface into three layers.
+Fluxora separates platform-native macOS integration, format/tool execution engines, and the PySide6 desktop interface into three layers.
 
 Diagrams:
 - [System Architecture Diagram](diagrams/filetool_architecture.svg)

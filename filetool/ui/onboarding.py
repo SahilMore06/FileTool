@@ -2018,7 +2018,7 @@ class OnboardingWindow(QWidget):
         parent: Optional[QWidget] = None,
     ):
         super().__init__(parent)
-        self.qsettings = qsettings if qsettings is not None else QSettings("FileTool", "FileTool")
+        self.qsettings = qsettings if qsettings is not None else QSettings("Fluxora", "Fluxora")
         self._first_boot = bool(first_boot)
         self._dark_mode = bool(dark_mode) if dark_mode is not None else bool(self.qsettings.value("dark_mode", False, type=bool))
         raw_accent = accent_key if accent_key is not None else str(self.qsettings.value("accent_preset", "amber", type=str) or "amber")
@@ -2031,7 +2031,7 @@ class OnboardingWindow(QWidget):
         self._fade_anim: Optional[QVariantAnimation] = None
 
         self.setObjectName("onboardingRoot")
-        self.setWindowTitle("Welcome to FileTool")
+        self.setWindowTitle("Welcome to Fluxora")
         self.setFixedSize(880, 568)
         self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -2077,7 +2077,7 @@ class OnboardingWindow(QWidget):
         self.header_logo = LogoWidget(size=22)
         self.header_logo.set_accent_color(self._tokens["accent"])
         lb_layout.addWidget(self.header_logo, 0, Qt.AlignVCenter)
-        title_lbl = QLabel("FileTool")
+        title_lbl = QLabel("Fluxora")
         title_lbl.setObjectName("onboardingRowLabel")
         lb_layout.addWidget(title_lbl, 0, Qt.AlignVCenter)
         lb_layout.addStretch(1)
@@ -2398,7 +2398,7 @@ class OnboardingWindow(QWidget):
         head_col.setSpacing(2)
         ins_title = QLabel("Customize")
         ins_title.setObjectName("onboardingSectionTitle")
-        ins_sub = QLabel("Changes apply across FileTool")
+        ins_sub = QLabel("Changes apply across Fluxora")
         ins_sub.setObjectName("onboardingRowSub")
         head_col.addWidget(ins_title)
         head_col.addWidget(ins_sub)
@@ -2698,9 +2698,9 @@ class OnboardingWindow(QWidget):
             lbl.style().polish(lbl)
         self.hero_status_lbl.set_command(
             badge="Starting",
-            source="Calibrating local FileTool engines...",
+            source="Calibrating local Fluxora engines...",
             active=False,
-            raw_text="Calibrating local FileTool engines...",
+            raw_text="Calibrating local Fluxora engines...",
             icon="sliders",
         )
         self.hero_canvas.play_install_sequence(emit_haptics=emit_haptics)

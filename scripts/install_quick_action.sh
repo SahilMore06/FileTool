@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Install the "Convert with FileTool" Finder Quick Action in ~/Library/Services.
+# Install the "Convert with Fluxora" Finder Quick Action in ~/Library/Services.
 
 set -euo pipefail
 
 SERVICES_DIR="${HOME}/Library/Services"
 mkdir -p "${SERVICES_DIR}"
 
-WORKFLOW_NAME="Convert with FileTool"
+WORKFLOW_NAME="Convert with Fluxora"
 WORKFLOW_DIR="${SERVICES_DIR}/${WORKFLOW_NAME}.workflow"
 CONTENTS_DIR="${WORKFLOW_DIR}/Contents"
 

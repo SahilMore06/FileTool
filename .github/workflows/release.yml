@@ -33,7 +33,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Build FileTool.app, DMG, and ZIP
+      - name: Build Fluxora.app, DMG, and ZIP
         run: |
           chmod +x scripts/build_app.sh
           ./scripts/build_app.sh
@@ -42,12 +42,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
-          name: FileTool ${{ inputs.tag || github.ref_name }} - Native macOS Offline File Utility
+          name: Fluxora ${{ inputs.tag || github.ref_name }} - Intelligent File Conversion & Productivity Suite
           generate_release_notes: true
           body: |
             Offline batch file conversion, compression, and cursor radial drag utilities for macOS.
 
-            ### Why FileTool
+            ### Why Fluxora
 
             - **Local Execution**: Converts documents, images, audio, video, spreadsheets, and archives on your Mac with zero cloud uploads, accounts, file caps, or watermarks.
             - **Zero Accessibility Permissions**: Uses passive Quartz modifier detection and `NSDragPboard` polling while keeping Finder drag focus intact.
@@ -55,16 +55,16 @@ jobs:
 
             ### Installation for macOS
 
-            1. Download `FileTool.dmg` (recommended) or `FileTool.app.zip` below.
-            2. Drag `FileTool.app` into `/Applications`.
-            3. On first launch, right-click (Control-click) `FileTool.app` and select **Open**, or clear quarantine in Terminal:
+            1. Download `Fluxora.dmg` (recommended) or `Fluxora.app.zip` below.
+            2. Drag `Fluxora.app` into `/Applications`.
+            3. On first launch, right-click (Control-click) `Fluxora.app` and select **Open**, or clear quarantine in Terminal:
 
                ```bash
-               xattr -cr /Applications/FileTool.app
+               xattr -cr /Applications/Fluxora.app
                ```
 
             Verify package integrity with `shasum -a 256 -c SHA256SUMS.txt`.
           files: |
-            dist/FileTool.dmg
-            dist/FileTool.app.zip
+            dist/Fluxora.dmg
+            dist/Fluxora.app.zip
             dist/SHA256SUMS.txt

@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 
 logger = logging.getLogger("filetool.platform.mac_actions")
 
-LAUNCH_AGENT_LABEL = "com.filetool.app"
+LAUNCH_AGENT_LABEL = "com.fluxora.app"
 LAUNCH_AGENT_PATH = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_AGENT_LABEL}.plist"
 
 
@@ -496,7 +496,7 @@ def is_launch_at_login_enabled() -> bool:
 
 
 def set_launch_at_login(enabled: bool) -> bool:
-    """Enable or disable launch at login via ~/Library/LaunchAgents/com.filetool.app.plist."""
+    """Enable or disable launch at login via ~/Library/LaunchAgents/com.fluxora.app.plist."""
     try:
         domain = f"gui/{os.getuid()}" if hasattr(os, "getuid") else "gui/501"
         if not enabled:

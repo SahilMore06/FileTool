@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Package FileTool as a standalone macOS .app bundle via PyInstaller.
+# Package Fluxora as a standalone macOS .app bundle via PyInstaller.
 
 set -euo pipefail
 
@@ -12,7 +12,7 @@ APP_VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' filetool/__init__.py | he
 APP_VERSION="${APP_VERSION:-1.1.0}"
 
 echo "============================================================"
-echo "     Building FileTool v${APP_VERSION} (.app) for macOS     "
+echo "     Building Fluxora v${APP_VERSION} (.app) for macOS      "
 echo "============================================================"
 
 # Ensure pyinstaller is available
@@ -32,20 +32,20 @@ fi
 echo "Using PyInstaller: ${PYINSTALLER}"
 
 echo "Cleaning previous build artifacts..."
-rm -rf build dist FileTool.spec
+rm -rf build dist FileTool.spec Fluxora.spec
 
 ICON_ARG=()
-if [[ -f "resources/FileTool.icns" ]]; then
-    ICON_ARG=(--icon "resources/FileTool.icns")
+if [[ -f "resources/Fluxora.icns" ]]; then
+    ICON_ARG=(--icon "resources/Fluxora.icns")
 fi
 
 echo "Running PyInstaller..."
 "${PYINSTALLER}" \
-    --name "FileTool" \
+    --name "Fluxora" \
     --windowed \
     --noconfirm \
     --clean \
-    --osx-bundle-identifier "com.filetool.macos" \
+    --osx-bundle-identifier "com.fluxora.macos" \
     "${ICON_ARG[@]}" \
     --collect-all "filetool" \
     --collect-all "PySide6" \
@@ -88,18 +88,18 @@ echo "Running PyInstaller..."
 
 echo ""
 echo "Patching Info.plist for high DPI and permissions..."
-INFO_PLIST="dist/FileTool.app/Contents/Info.plist"
+INFO_PLIST="dist/Fluxora.app/Contents/Info.plist"
 
 if [[ -f "${INFO_PLIST}" ]]; then
     # Add NSHighResolutionCapable if missing
     /usr/libexec/PlistBuddy -c "Set :NSHighResolutionCapable true" "${INFO_PLIST}" 2>/dev/null || \
     /usr/libexec/PlistBuddy -c "Add :NSHighResolutionCapable bool true" "${INFO_PLIST}" 2>/dev/null || true
 
-    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName FileTool" "${INFO_PLIST}" 2>/dev/null || \
-    /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string FileTool" "${INFO_PLIST}" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Fluxora" "${INFO_PLIST}" 2>/dev/null || \
+    /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string Fluxora" "${INFO_PLIST}" 2>/dev/null || true
 
-    /usr/libexec/PlistBuddy -c "Set :CFBundleName FileTool" "${INFO_PLIST}" 2>/dev/null || \
-    /usr/libexec/PlistBuddy -c "Add :CFBundleName string FileTool" "${INFO_PLIST}" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Set :CFBundleName Fluxora" "${INFO_PLIST}" 2>/dev/null || \
+    /usr/libexec/PlistBuddy -c "Add :CFBundleName string Fluxora" "${INFO_PLIST}" 2>/dev/null || true
 
     /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${APP_VERSION}" "${INFO_PLIST}" 2>/dev/null || \
     /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string ${APP_VERSION}" "${INFO_PLIST}" 2>/dev/null || true
@@ -107,32 +107,32 @@ if [[ -f "${INFO_PLIST}" ]]; then
     /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${APP_VERSION}" "${INFO_PLIST}" 2>/dev/null || \
     /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string ${APP_VERSION}" "${INFO_PLIST}" 2>/dev/null || true
 
-    /usr/libexec/PlistBuddy -c "Set :NSAppleEventsUsageDescription 'FileTool uses Apple Events to reveal converted files in Finder.'" "${INFO_PLIST}" 2>/dev/null || \
-    /usr/libexec/PlistBuddy -c "Add :NSAppleEventsUsageDescription string 'FileTool uses Apple Events to reveal converted files in Finder.'" "${INFO_PLIST}" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Set :NSAppleEventsUsageDescription 'Fluxora uses Apple Events to reveal converted files in Finder.'" "${INFO_PLIST}" 2>/dev/null || \
+    /usr/libexec/PlistBuddy -c "Add :NSAppleEventsUsageDescription string 'Fluxora uses Apple Events to reveal converted files in Finder.'" "${INFO_PLIST}" 2>/dev/null || true
 fi
 
 echo ""
 echo "Cleaning Qt auxiliary bundles and signing application..."
-rm -rf dist/FileTool.app/Contents/Frameworks/PySide6/*__dot__app 2>/dev/null || true
-codesign -f -s - --deep "dist/FileTool.app" 2>/dev/null || true
+rm -rf dist/Fluxora.app/Contents/Frameworks/PySide6/*__dot__app 2>/dev/null || true
+codesign -f -s - --deep "dist/Fluxora.app" 2>/dev/null || true
 
 echo ""
 echo "Creating downloadable distribution packages (ZIP and DMG)..."
 (
     cd dist
-    echo "Creating FileTool.app.zip..."
-    ditto -c -k --keepParent "FileTool.app" "FileTool.app.zip"
+    echo "Creating Fluxora.app.zip..."
+    ditto -c -k --keepParent "Fluxora.app" "Fluxora.app.zip"
 
     if command -v hdiutil >/dev/null 2>&1; then
-        echo "Creating FileTool.dmg..."
-        rm -f "FileTool.dmg"
-        hdiutil create -volname "FileTool" -srcfolder "FileTool.app" -ov -format UDZO "FileTool.dmg"
+        echo "Creating Fluxora.dmg..."
+        rm -f "Fluxora.dmg"
+        hdiutil create -volname "Fluxora" -srcfolder "Fluxora.app" -ov -format UDZO "Fluxora.dmg"
     fi
 
     if command -v shasum >/dev/null 2>&1; then
         echo "Generating SHA256SUMS.txt..."
         rm -f "SHA256SUMS.txt"
-        for pkg in FileTool.dmg FileTool.app.zip; do
+        for pkg in Fluxora.dmg Fluxora.app.zip; do
             [[ -f "${pkg}" ]] && shasum -a 256 "${pkg}" >> "SHA256SUMS.txt"
         done
     fi
@@ -140,8 +140,8 @@ echo "Creating downloadable distribution packages (ZIP and DMG)..."
 
 echo ""
 echo "============================================================"
-echo "✔ Successfully Built: dist/FileTool.app (v${APP_VERSION})"
-echo "✔ Downloadable ZIP:   dist/FileTool.app.zip"
-[[ -f "dist/FileTool.dmg" ]] && echo "✔ Downloadable DMG:   dist/FileTool.dmg"
+echo "✔ Successfully Built: dist/Fluxora.app (v${APP_VERSION})"
+echo "✔ Downloadable ZIP:   dist/Fluxora.app.zip"
+[[ -f "dist/Fluxora.dmg" ]] && echo "✔ Downloadable DMG:   dist/Fluxora.dmg"
 [[ -f "dist/SHA256SUMS.txt" ]] && echo "✔ Checksums:          dist/SHA256SUMS.txt"
 echo "============================================================"

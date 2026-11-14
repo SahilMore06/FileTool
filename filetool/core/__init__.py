@@ -1,4 +1,4 @@
-"""Core conversion engine, registry, and runner for FileTool."""
+"""Core conversion engine, registry, and runner for Fluxora."""
 
 def load_all_engines() -> None:
     """Import all engine modules to ensure all format converters are registered."""

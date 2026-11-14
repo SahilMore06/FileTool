@@ -2,7 +2,7 @@
 
 ## Our Pledge
 
-We as members, contributors, and maintainers pledge to make participation in FileTool a respectful, constructive experience for everyone regardless of background, experience level, identity, or platform background.
+We as members, contributors, and maintainers pledge to make participation in Fluxora a respectful, constructive experience for everyone regardless of background, experience level, identity, or platform background.
 
 ## Expected Behavior
 
@@ -18,4 +18,4 @@ We as members, contributors, and maintainers pledge to make participation in Fil
 
 ## Enforcement
 
-Maintainers may close comments, lock threads, or remove contributors who repeatedly violate these standards. Report concerns directly to the repository owner via [GitHub Issues](https://github.com/SahilMore06/FileTool/issues).
+Maintainers may close comments, lock threads, or remove contributors who repeatedly violate these standards. Report concerns directly to the repository owner via [GitHub Issues](https://github.com/SahilMore06/Fluxora/issues).

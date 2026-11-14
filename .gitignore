@@ -24,6 +24,7 @@ resources/temp_*
 
 # Scratch & local AI agent workspace config
 scratch/
+brag-output/
 .agents/
 .claude/
 AGENTS.md

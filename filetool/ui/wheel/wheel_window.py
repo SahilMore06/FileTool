@@ -256,7 +256,7 @@ class WheelWindow(QWidget):
         super().__init__(parent)
         self.runner = runner or JobRunner()
         self.painter = WheelPainter()
-        self._qsettings = QSettings("FileTool", "FileTool")
+        self._qsettings = QSettings("Fluxora", "Fluxora")
         self._ext_icon_cache: Dict[str, Optional[QPixmap]] = {}
         self._haptic_performer = None
         try:
@@ -1015,7 +1015,7 @@ class WheelWindow(QWidget):
             else f"Output saved: {Path(out_path).name}"
         )
         send_completion_notification(
-            title="FileTool Action Complete",
+            title="Fluxora Action Complete",
             message=notif_msg,
             file_path=None if is_summary else out_path,
         )
