@@ -14,7 +14,7 @@ pillow_heif.register_heif_opener()
 
 from filetool.core.deps import resolver
 from filetool.core.registry import Converter, OptionDefinition, registry
-from filetool.core.utils import run_command, safe_temp_dir
+from filetool.core.utils import run_command
 
 logger = logging.getLogger("filetool.engines.images")
 
@@ -67,10 +67,8 @@ def convert_image(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
     in_ext = src.suffix.lower().lstrip(".")
     out_ext = dest.suffix.lower().lstrip(".")
 
-    # Case 1: SVG as input format
     if in_ext == "svg":
         magick_path = resolver.get_tool_path("magick")
-        # For rasterizing SVG, set density for high DPI fidelity
         cmd = [magick_path, "-density", str(dpi), str(src)]
         if out_ext in ("jpg", "jpeg"):
             cmd.extend(["-background", "white", "-flatten", "-quality", str(quality)])
@@ -83,7 +81,6 @@ def convert_image(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
             raise RuntimeError(f"SVG conversion failed: {res.stderr_tail()}")
         return dest
 
-    # Case 2: AVIF output format
     if out_ext == "avif":
         magick_path = resolver.get_tool_path("magick")
         cmd = [magick_path, str(src), "-quality", str(quality), str(dest)]
@@ -92,16 +89,13 @@ def convert_image(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
             raise RuntimeError(f"AVIF conversion failed: {res.stderr_tail()}")
         return dest
 
-    # Case 3: HEIC output format
     if out_ext in ("heic", "heif"):
-        # ImageMagick or macOS sips
         magick_path = resolver.resolve("magick")
         if magick_path:
             cmd = [str(magick_path), str(src), "-quality", str(quality), str(dest)]
             res = run_command(cmd)
             if res.success and dest.exists():
                 return dest
-        # Fallback to macOS native sips
         sips_path = resolver.get_tool_path("sips")
         cmd = [sips_path, "-s", "format", "heic", str(src), "--out", str(dest)]
         res = run_command(cmd)
@@ -109,7 +103,6 @@ def convert_image(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
             raise RuntimeError(f"HEIC conversion failed: {res.stderr_tail()}")
         return dest
 
-    # Case 4: AVIF input format to other formats via ImageMagick
     if in_ext == "avif":
         magick_path = resolver.get_tool_path("magick")
         cmd = [magick_path, str(src)]
@@ -123,16 +116,13 @@ def convert_image(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
             raise RuntimeError(f"AVIF reading failed: {res.stderr_tail()}")
         return dest
 
-    # Case 5: PDF output format from image
     if out_ext == "pdf":
         with Image.open(src) as img:
             rgb_img = _flatten_transparency(img)
             rgb_img.save(dest, "PDF", resolution=float(dpi))
         return dest
 
-    # Case 6: Standard Pillow formats (JPG, PNG, WebP, TIFF, BMP)
     with Image.open(src) as img:
-        # Normalize format name for Pillow
         save_kwargs: Dict[str, Any] = {}
 
         if out_ext in ("jpg", "jpeg"):

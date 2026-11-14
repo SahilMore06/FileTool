@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from filetool.core.deps import resolver
-from filetool.core.registry import Converter, OptionDefinition, registry
+from filetool.core.registry import Converter, registry
 from filetool.core.utils import run_command, safe_temp_dir
 
 logger = logging.getLogger("filetool.engines.pandoc_docs")

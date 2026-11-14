@@ -5,8 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "filetool"
 version = "1.0.0"
-description = "Native macOS offline desktop file conversion app"
-authors = [{ name = "FileTool" }]
+description = "Native macOS offline desktop file conversion app and Finder drag wheel"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Sahil More" }]
 requires-python = ">=3.12"
 dependencies = [
     "PySide6>=6.6.0",
@@ -31,6 +33,11 @@ dev = [
 [project.scripts]
 filetool = "filetool.cli:main"
 filetool-gui = "filetool.app:main"
+
+[project.urls]
+Homepage = "https://github.com/SahilMore06/FileTool"
+Repository = "https://github.com/SahilMore06/FileTool"
+Issues = "https://github.com/SahilMore06/FileTool/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

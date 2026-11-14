@@ -28,7 +28,6 @@ def convert_spreadsheet(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
     in_ext = src.suffix.lower().lstrip(".")
     out_ext = dest.suffix.lower().lstrip(".")
 
-    # Case 1: Conversion to PDF via LibreOffice headless
     if out_ext == "pdf":
         soffice = resolver.get_tool_path("soffice")
         with safe_temp_dir(prefix="filetool_sheet_pdf_") as tmp_dir:
@@ -40,7 +39,6 @@ def convert_spreadsheet(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
             shutil.copy2(expected_pdf, dest)
         return dest
 
-    # Case 2: Conversion to ODS via LibreOffice headless
     if out_ext == "ods":
         soffice = resolver.get_tool_path("soffice")
         with safe_temp_dir(prefix="filetool_sheet_ods_") as tmp_dir:
@@ -52,7 +50,6 @@ def convert_spreadsheet(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
             shutil.copy2(expected_ods, dest)
         return dest
 
-    # Case 3: Read input into pandas DataFrame
     if in_ext == "csv":
         df = pd.read_csv(src)
     elif in_ext == "tsv":
@@ -60,7 +57,7 @@ def convert_spreadsheet(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
     elif in_ext == "xlsx":
         df = pd.read_excel(src, engine="openpyxl")
     elif in_ext in ("xls", "ods"):
-        # Use LibreOffice to convert to temporary CSV first to ensure flawless parsing
+        # LibreOffice normalizes legacy/ODS workbooks to CSV before loading into pandas
         soffice = resolver.get_tool_path("soffice")
         with safe_temp_dir(prefix="filetool_sheet_read_") as tmp_dir:
             cmd = [soffice, "--headless", "--convert-to", "csv", "--outdir", str(tmp_dir), str(src)]
@@ -72,7 +69,6 @@ def convert_spreadsheet(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
     else:
         df = pd.read_csv(src)
 
-    # Case 4: Write output from DataFrame
     if out_ext == "csv":
         df.to_csv(dest, index=False)
     elif out_ext == "tsv":

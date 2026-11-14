@@ -14,18 +14,12 @@ from filetool.core.utils import run_command
 
 logger = logging.getLogger("filetool.deps")
 
-# Search directories in strict priority order
 DEFAULT_SEARCH_PATHS = [
-    # 1. App bundle Resources (when packaged with PyInstaller or py2app)
     Path(sys.executable).resolve().parent.parent / "Resources" / "bin",
     Path(__file__).resolve().parent.parent / "resources" / "bin",
-    # 2. Apple Silicon Homebrew
     Path("/opt/homebrew/bin"),
-    # 3. Intel Homebrew / local custom
     Path("/usr/local/bin"),
-    # 4. macOS System
     Path("/usr/bin"),
-    # 5. LibreOffice macOS installation
     Path("/Applications/LibreOffice.app/Contents/MacOS"),
     Path.home() / "Applications/LibreOffice.app/Contents/MacOS",
 ]

@@ -9,28 +9,27 @@ from __future__ import annotations
 
 import logging
 import os
+import urllib.parse
+import zipfile
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import List, Optional
 
 from PySide6.QtCore import (
-    QEasingCurve,
-    QPoint,
-    QPointF,
-    QRect,
-    QRectF,
+    QObject,
+    QRunnable,
+    QSettings,
     Qt,
+    QThreadPool,
     QTimer,
     QVariantAnimation,
     Signal,
 )
 from PySide6.QtGui import (
-    QColor,
     QCursor,
     QDragEnterEvent,
     QDragLeaveEvent,
     QDragMoveEvent,
     QDropEvent,
-    QGuiApplication,
     QKeyEvent,
     QPainter,
     QPixmap,
@@ -38,7 +37,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QWidget
 
 from filetool.core.registry import registry
-from filetool.core.runner import ConversionJob, JobRunner, JobStatus
+from filetool.core.runner import ConversionJob, JobRunner
 from filetool.core.utils import get_unique_output_path
 from filetool.platform.mac_actions import (
     action_airdrop,
@@ -47,7 +46,7 @@ from filetool.platform.mac_actions import (
     action_float,
     action_move_files,
     action_open_in_terminal,
-    reveal_in_finder,
+    play_sound,
     send_completion_notification,
     trigger_haptic_tick,
 )
@@ -56,6 +55,7 @@ from filetool.platform.mac_window import (
     configure_overlay_window,
     show_without_activating,
 )
+from filetool.ui.styles import ACCENT_PRESETS
 from filetool.ui.wheel.animations import (
     CANCEL_DURATION_MS,
     CANCEL_END_SCALE,
@@ -67,7 +67,6 @@ from filetool.ui.wheel.animations import (
     HOVER_DURATION_MS,
     OPEN_DURATION_MS,
     OPEN_END_SCALE,
-    OPEN_OVERSHOOT_SCALE,
     OPEN_START_SCALE,
     STAGGER_INTERVAL_MS,
     SWITCH_DURATION_MS,
@@ -78,7 +77,6 @@ from filetool.ui.wheel.animations import (
     should_reduce_motion,
 )
 from filetool.ui.wheel.geometry import (
-    HitResult,
     SegmentArc,
     hit_test,
     layout_segments,
@@ -99,9 +97,151 @@ def normalize_file_path(p: str) -> str:
         p = p[16:]
     elif p.startswith("file://"):
         p = p[7:]
-    import urllib.parse
-    p = urllib.parse.unquote(p)
-    return os.path.abspath(p)
+    return os.path.abspath(urllib.parse.unquote(p))
+
+
+def _crop_center_square(src: Path, dest: Path) -> Path:
+    from PIL import Image
+    from filetool.core.tools.crop import crop_image
+
+    with Image.open(src) as img:
+        w, h = img.size
+    if w != h:
+        side = min(w, h)
+        left = (w - side) // 2
+        top = (h - side) // 2
+        right, bottom = left + side, top + side
+    else:
+        margin = max(1, int(w * 0.1))
+        left, top, right, bottom = margin, margin, w - margin, h - margin
+    return crop_image(src, dest, left, top, right, bottom)
+
+
+def _split_video_clips(src: Path, out_dir: Path) -> Path:
+    from filetool.core.tools.split import split_video_by_time
+
+    dest_dir = get_unique_output_path(out_dir / f"{src.stem}_clips")
+    if not split_video_by_time(src, dest_dir, segment_duration_seconds=30.0):
+        raise RuntimeError("No video segments were generated")
+    return dest_dir
+
+
+def _split_pdf_pages(src: Path, out_dir: Path) -> Path:
+    from filetool.core.tools.split import split_pdf_by_pages
+
+    dest_dir = get_unique_output_path(out_dir / f"{src.stem}_pages")
+    if not split_pdf_by_pages(src, dest_dir):
+        raise RuntimeError("No PDF pages were extracted")
+    return dest_dir
+
+
+def _merge_pdf_files(files: List[str], src: Path, out_dir: Path) -> Path:
+    from filetool.core.tools.merge import merge_pdfs
+
+    pdf_paths = [Path(p) for p in files if p.lower().endswith(".pdf")]
+    if len(pdf_paths) < 2:
+        raise ValueError("Select at least two PDF files to merge")
+    return merge_pdfs(pdf_paths, get_unique_output_path(out_dir / f"{src.stem}_merged.pdf"))
+
+
+def _compress_archive(files: List[str], src: Path, out_dir: Path) -> Path:
+    dest = get_unique_output_path(out_dir / f"{src.stem}.zip")
+    with zipfile.ZipFile(dest, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for item_str in files:
+            item = Path(item_str)
+            if item.is_dir():
+                for child in sorted(item.rglob("*")):
+                    if child.is_file():
+                        zf.write(child, child.relative_to(item.parent))
+            elif item.is_file():
+                zf.write(item, item.name)
+    return dest
+
+
+def execute_wheel_tool(tool_name: str, files: List[str]) -> Path:
+    """Execute a wheel tool action against dragged files and return the output path."""
+    if not files:
+        raise ValueError("No files provided for tool action")
+
+    src = Path(files[0])
+    out_dir = src.parent
+
+    if tool_name == "compress_image":
+        from filetool.core.tools.compress import compress_image
+
+        return compress_image(src, get_unique_output_path(out_dir / f"{src.stem}_compressed{src.suffix}"), quality=60)
+    if tool_name == "resize_image":
+        from filetool.core.tools.resize import resize_image
+
+        return resize_image(src, get_unique_output_path(out_dir / f"{src.stem}_resized{src.suffix}"), scale_percent=50.0)
+    if tool_name == "rotate_image":
+        from filetool.core.tools.resize import rotate_image
+
+        return rotate_image(src, get_unique_output_path(out_dir / f"{src.stem}_rotated{src.suffix}"), degrees=90)
+    if tool_name == "crop_image":
+        return _crop_center_square(src, get_unique_output_path(out_dir / f"{src.stem}_cropped{src.suffix}"))
+    if tool_name == "compress_video":
+        from filetool.core.tools.compress import compress_video
+
+        return compress_video(src, get_unique_output_path(out_dir / f"{src.stem}_compressed{src.suffix}"), crf=28)
+    if tool_name in ("trim_video", "trim_audio"):
+        from filetool.core.tools.trim import trim_media
+
+        return trim_media(src, get_unique_output_path(out_dir / f"{src.stem}_trimmed{src.suffix}"), start_time=0, duration=30)
+    if tool_name == "split_video":
+        return _split_video_clips(src, out_dir)
+    if tool_name == "compress_audio":
+        from filetool.core.tools.compress import compress_audio
+
+        target_ext = ".m4a" if src.suffix.lower() in (".wav", ".aiff", ".aif", ".flac") else src.suffix
+        return compress_audio(src, get_unique_output_path(out_dir / f"{src.stem}_compressed{target_ext}"), bitrate="128k")
+    if tool_name == "compress_pdf":
+        from filetool.core.tools.compress import compress_pdf
+
+        return compress_pdf(src, get_unique_output_path(out_dir / f"{src.stem}_compressed{src.suffix}"), setting="/ebook")
+    if tool_name == "rotate_pdf":
+        from filetool.core.tools.resize import rotate_pdf
+
+        return rotate_pdf(src, get_unique_output_path(out_dir / f"{src.stem}_rotated{src.suffix}"), degrees=90)
+    if tool_name == "split_pdf":
+        return _split_pdf_pages(src, out_dir)
+    if tool_name == "merge_pdf":
+        return _merge_pdf_files(files, src, out_dir)
+    if tool_name == "strip_metadata":
+        from filetool.core.tools.metadata import strip_metadata
+
+        return strip_metadata(src, get_unique_output_path(out_dir / f"{src.stem}_clean{src.suffix}"))
+    if tool_name == "to_pdf":
+        from filetool.core.tools.merge import merge_images_to_pdf
+
+        return merge_images_to_pdf([Path(p) for p in files], get_unique_output_path(out_dir / f"{src.stem}.pdf"))
+    if tool_name == "compress_generic":
+        return _compress_archive(files, src, out_dir)
+
+    raise ValueError(f"Unsupported tool action: {tool_name}")
+
+
+class _ToolWorkerSignals(QObject):
+    progress = Signal(int)
+    finished = Signal(str)
+    failed = Signal(str)
+
+
+class _ToolTask(QRunnable):
+    def __init__(self, tool_name: str, files: List[str], signals: _ToolWorkerSignals):
+        super().__init__()
+        self.tool_name = tool_name
+        self.files = files
+        self.signals = signals
+
+    def run(self) -> None:
+        try:
+            self.signals.progress.emit(40)
+            out_path = execute_wheel_tool(self.tool_name, self.files)
+            self.signals.finished.emit(str(out_path))
+        except Exception as exc:
+            logger.error("Tool execution error: %s", exc, exc_info=True)
+            self.signals.failed.emit(str(exc))
 
 
 class WheelWindow(QWidget):
@@ -114,7 +254,6 @@ class WheelWindow(QWidget):
         self.runner = runner or JobRunner()
         self.painter = WheelPainter()
 
-        # Window styling
         self.setWindowFlags(
             Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
         )
@@ -125,8 +264,7 @@ class WheelWindow(QWidget):
         self.setMouseTracking(True)
         self.resize(WINDOW_SIZE, WINDOW_SIZE)
 
-        # State
-        self.wheel_type: str = "convert"  # "convert", "tools", "actions"
+        self.wheel_type: str = "convert"
         self.dragged_files: List[str] = []
         self.primary_segments: List[SegmentArc] = []
         self.secondary_segments: Optional[List[SegmentArc]] = None
@@ -134,7 +272,6 @@ class WheelWindow(QWidget):
         self.hovered_ring: int = 1
         self.hover_progress: float = 0.0
 
-        # Animation states
         self.open_scale: float = 1.0
         self.open_opacity: float = 1.0
         self.segment_stagger: List[float] = []
@@ -150,7 +287,6 @@ class WheelWindow(QWidget):
         self.is_dropping: bool = False
         self.current_job_id: Optional[str] = None
 
-        # Animations
         self._open_anim: Optional[QVariantAnimation] = None
         self._hover_anim: Optional[QVariantAnimation] = None
         self._switch_anim: Optional[QVariantAnimation] = None
@@ -158,18 +294,38 @@ class WheelWindow(QWidget):
         self._cancel_anim: Optional[QVariantAnimation] = None
         self._shake_anim: Optional[QVariantAnimation] = None
 
-        # Connect runner signals
+        self.dark_mode: bool = False
+        self.accent_key: str = "amber"
+        self._sync_theme_from_settings()
+
         self.runner.signals.progress.connect(self._on_job_progress)
         self.runner.signals.completed.connect(self._on_job_completed)
         self.runner.signals.failed.connect(self._on_job_failed)
 
-        # Apply native macOS level & collection behavior
+        self._tool_signals = _ToolWorkerSignals(self)
+        self._tool_signals.progress.connect(self._on_tool_progress)
+        self._tool_signals.finished.connect(self._on_action_finished)
+        self._tool_signals.failed.connect(self._on_action_error)
+
         configure_overlay_window(self)
 
-    # --- Lifecycle & Opening ---
+    # --- Theme & Lifecycle ---
+
+    def _sync_theme_from_settings(self) -> None:
+        qs = QSettings("FileTool", "FileTool")
+        dark = qs.value("dark_mode", False, type=bool)
+        accent = qs.value("accent_preset", "amber", type=str)
+        self.set_theme(dark, accent)
+
+    def set_theme(self, dark_mode: bool, accent_key: str) -> None:
+        self.dark_mode = bool(dark_mode)
+        self.accent_key = accent_key if accent_key in ACCENT_PRESETS else "amber"
+        if self.isVisible():
+            self.update()
 
     def show_wheel(self, wheel_type: str, cursor_x: float, cursor_y: float, files: List[str]) -> None:
         """Open the wheel at the given cursor coordinates."""
+        self._sync_theme_from_settings()
         self.wheel_type = wheel_type
         clean_files = [normalize_file_path(f) for f in files]
         self.dragged_files = [f for f in clean_files if f and os.path.exists(f)]
@@ -177,7 +333,6 @@ class WheelWindow(QWidget):
             logger.debug("show_wheel called with no valid files: raw=%s clean=%s", files, clean_files)
             return
 
-        # Stop any pending cancel animations
         if self._cancel_anim and self._cancel_anim.state() == QVariantAnimation.Running:
             self._cancel_anim.stop()
 
@@ -190,25 +345,17 @@ class WheelWindow(QWidget):
         self.open_opacity = 1.0
         self.open_scale = 1.0
 
-        # Load file icon
         self._load_file_icon(self.dragged_files[0])
-
-        # Populate segments
         self._populate_segments()
 
-        # If coordinates are invalid or offscreen, fallback to current cursor
         if cursor_x <= 0 and cursor_y <= 0:
             cpos = QCursor.pos()
             cursor_x, cursor_y = float(cpos.x()), float(cpos.y())
 
-        # Position clamped to screen
         pos_x, pos_y = clamp_window_to_screen(cursor_x, cursor_y, WINDOW_SIZE, WINDOW_SIZE)
         self.move(pos_x, pos_y)
 
-        # Start open animation
         self._start_open_animation()
-
-        # Show without stealing focus
         show_without_activating(self)
 
     def switch_wheel(self, new_type: str) -> None:
@@ -219,7 +366,16 @@ class WheelWindow(QWidget):
         self.wheel_type = new_type
         self._populate_segments()
         self.hovered_index = -1
+        self.hovered_ring = 1
         self.hover_progress = 0.0
+
+        if should_reduce_motion():
+            self.switch_rotation = 0.0
+            self.switch_opacity = 1.0
+            self.update()
+            play_sound("Tink")
+            trigger_haptic_tick()
+            return
 
         # Run switch animation
         if self._switch_anim and self._switch_anim.state() == QVariantAnimation.Running:
@@ -238,6 +394,8 @@ class WheelWindow(QWidget):
             self.update()
 
         self._switch_anim.valueChanged.connect(_on_switch_step)
+        self._switch_anim.finished.connect(lambda: play_sound("Tink"))  # Sound when wheel switches
+        self._switch_anim.finished.connect(lambda: trigger_haptic_tick())  # Haptic when wheel switches
         self._switch_anim.start()
 
     def cancel_wheel(self) -> None:
@@ -261,6 +419,8 @@ class WheelWindow(QWidget):
         def _on_cancel_done():
             self.hide()
             self.closed.emit()
+            play_sound("Fuse")  # Sound when wheel closes
+            trigger_haptic_tick()  # Haptic when wheel closes
 
         self._cancel_anim.valueChanged.connect(_on_cancel_step)
         self._cancel_anim.finished.connect(_on_cancel_done)
@@ -432,6 +592,8 @@ class WheelWindow(QWidget):
             self.update()
 
         self._open_anim.valueChanged.connect(_on_open_step)
+        self._open_anim.finished.connect(lambda: play_sound("Pop"))  # Sound when wheel opens
+        self._open_anim.finished.connect(lambda: trigger_haptic_tick())  # Haptic when wheel opens
         self._open_anim.start()
 
     def _update_hover(self, index: int, ring: int) -> None:
@@ -451,9 +613,28 @@ class WheelWindow(QWidget):
         elif ring == 0:
             self.secondary_segments = None
 
+        # Subtle haptic feedback on hover change
+        if index != -1:  # Only if hovering over a segment (not hub/outside)
+            try:
+                from AppKit import NSHapticFeedbackManager
+                performer = NSHapticFeedbackManager.defaultPerformer()
+                if performer:
+                    # Use a lighter haptic feedback for hover
+                    performer.performFeedbackPattern_performanceTime_(
+                        1,  # NSHapticFeedbackPatternAlignmentChange (lighter tick)
+                        0,  # NSHapticFeedbackPerformanceTimeNow
+                    )
+            except Exception:
+                pass  # Silently fail if haptic not available
+
         # Hover animation
         if self._hover_anim and self._hover_anim.state() == QVariantAnimation.Running:
             self._hover_anim.stop()
+
+        if should_reduce_motion():
+            self.hover_progress = 1.0 if index != -1 else 0.0
+            self.update()
+            return
 
         self._hover_anim = QVariantAnimation(self)
         self._hover_anim.setDuration(HOVER_DURATION_MS)
@@ -549,7 +730,9 @@ class WheelWindow(QWidget):
             return
 
         if direction == "apply":
-            if self.hovered_index >= 0 and self.hovered_index < len(self.primary_segments):
+            if self.hovered_ring == 2 and self.secondary_segments and 0 <= self.hovered_index < len(self.secondary_segments):
+                self._execute_segment(self.secondary_segments[self.hovered_index])
+            elif 0 <= self.hovered_index < len(self.primary_segments):
                 self._execute_segment(self.primary_segments[self.hovered_index])
             return
 
@@ -641,65 +824,13 @@ class WheelWindow(QWidget):
         elif action_type == "action":
             self._run_native_action(str(action_data), files)
 
+    def _on_tool_progress(self, percent: int) -> None:
+        self.job_progress = percent
+        self.update()
+
     def _run_tool_action(self, tool_name: str, files: List[str]) -> None:
-        src = Path(files[0])
-        out_dir = src.parent
-
-        def _worker():
-            try:
-                self.job_progress = 40
-                self.update()
-
-                out_path = src
-                if tool_name == "compress_image":
-                    from filetool.core.tools.compress import compress_image
-                    cand = out_dir / f"{src.stem}_compressed{src.suffix}"
-                    dest = get_unique_output_path(cand)
-                    out_path = compress_image(src, dest, quality=60)
-                elif tool_name == "compress_video":
-                    from filetool.core.tools.compress import compress_video
-                    cand = out_dir / f"{src.stem}_compressed{src.suffix}"
-                    dest = get_unique_output_path(cand)
-                    out_path = compress_video(src, dest, crf=28)
-                elif tool_name == "compress_pdf":
-                    from filetool.core.tools.compress import compress_pdf
-                    cand = out_dir / f"{src.stem}_compressed{src.suffix}"
-                    dest = get_unique_output_path(cand)
-                    out_path = compress_pdf(src, dest, setting="/ebook")
-                elif tool_name == "rotate_image":
-                    from filetool.core.tools.resize import rotate_image
-                    cand = out_dir / f"{src.stem}_rotated{src.suffix}"
-                    dest = get_unique_output_path(cand)
-                    out_path = rotate_image(src, dest, degrees=90)
-                elif tool_name == "rotate_pdf":
-                    from filetool.core.tools.resize import rotate_pdf
-                    cand = out_dir / f"{src.stem}_rotated{src.suffix}"
-                    dest = get_unique_output_path(cand)
-                    out_path = rotate_pdf(src, dest, degrees=90)
-                elif tool_name == "strip_metadata":
-                    from filetool.core.tools.metadata import strip_image_metadata, strip_pdf_metadata
-                    cand = out_dir / f"{src.stem}_clean{src.suffix}"
-                    dest = get_unique_output_path(cand)
-                    if src.suffix.lower() == ".pdf":
-                        out_path = strip_pdf_metadata(src, dest)
-                    else:
-                        out_path = strip_image_metadata(src, dest)
-                elif tool_name == "to_pdf":
-                    from filetool.core.tools.merge import merge_images_to_pdf
-                    cand = out_dir / f"{src.stem}.pdf"
-                    dest = get_unique_output_path(cand)
-                    out_path = merge_images_to_pdf([src], dest)
-                else:
-                    cand = out_dir / f"{src.stem}_processed{src.suffix}"
-                    dest = get_unique_output_path(cand)
-                    out_path = dest
-
-                self._on_action_finished(str(out_path))
-            except Exception as exc:
-                logger.error("Tool execution error: %s", exc, exc_info=True)
-                self._on_action_error(str(exc))
-
-        QTimer.singleShot(50, _worker)
+        task = _ToolTask(tool_name, list(files), self._tool_signals)
+        QThreadPool.globalInstance().start(task)
 
     def _run_native_action(self, action_name: str, files: List[str]) -> None:
         try:
@@ -751,24 +882,20 @@ class WheelWindow(QWidget):
         self.job_progress = 100
         self.update()
 
-        # Trigger haptic tick
         trigger_haptic_tick()
-
-        # Send notification
+        play_sound("Hero")
         send_completion_notification(
             title="FileTool Action Complete",
             message=f"Output saved: {Path(out_path).name}",
             file_path=out_path,
         )
-
-        # Close after brief checkmark display
         QTimer.singleShot(DONE_DURATION_MS, self._finish_and_close)
 
     def _on_action_error(self, err_msg: str) -> None:
         self.drop_state = "error"
         self.update()
+        play_sound("Basso")
 
-        # Error shake animation
         if self._shake_anim and self._shake_anim.state() == QVariantAnimation.Running:
             self._shake_anim.stop()
 
@@ -799,24 +926,35 @@ class WheelWindow(QWidget):
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
-        state = WheelState(
-            wheel_type=self.wheel_type,
-            primary_segments=self.primary_segments,
-            secondary_segments=self.secondary_segments,
-            hovered_index=self.hovered_index,
-            hovered_ring=self.hovered_ring,
-            hover_progress=self.hover_progress,
-            open_scale=self.open_scale,
-            open_opacity=self.open_opacity,
-            segment_stagger_progress=self.segment_stagger,
-            switch_rotation=self.switch_rotation,
-            switch_opacity=self.switch_opacity,
-            drop_state=self.drop_state,
-            drop_progress=self.drop_progress,
-            job_progress=self.job_progress,
-            shake_offset_x=self.shake_offset_x,
-            file_path=self.dragged_files[0] if self.dragged_files else None,
-            file_name=Path(self.dragged_files[0]).name if self.dragged_files else "",
-            file_icon=self.file_icon,
-        )
-        self.painter.paint(painter, self.width(), self.height(), state)
+        if not painter.isActive():
+            return
+        try:
+            preset = ACCENT_PRESETS.get(self.accent_key, ACCENT_PRESETS["amber"])
+            state = WheelState(
+                wheel_type=self.wheel_type,
+                primary_segments=self.primary_segments,
+                secondary_segments=self.secondary_segments,
+                hovered_index=self.hovered_index,
+                hovered_ring=self.hovered_ring,
+                hover_progress=self.hover_progress,
+                dark_mode=self.dark_mode,
+                accent_color=preset["accent"],
+                accent_hover=preset.get("accent_pressed", preset["accent_hover"]),
+                open_scale=self.open_scale,
+                open_opacity=self.open_opacity,
+                segment_stagger_progress=self.segment_stagger,
+                switch_rotation=self.switch_rotation,
+                switch_opacity=self.switch_opacity,
+                drop_state=self.drop_state,
+                drop_progress=self.drop_progress,
+                job_progress=self.job_progress,
+                shake_offset_x=self.shake_offset_x,
+                file_path=self.dragged_files[0] if self.dragged_files else None,
+                file_name=Path(self.dragged_files[0]).name if self.dragged_files else "",
+                file_count=max(1, len(self.dragged_files)),
+                file_icon=self.file_icon,
+            )
+            self.painter.paint(painter, self.width(), self.height(), state)
+        finally:
+            if painter.isActive():
+                painter.end()

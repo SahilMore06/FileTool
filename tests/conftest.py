@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
-import subprocess
+import sys
 from pathlib import Path
-import pytest
+
 from PIL import Image
 import pillow_heif
-
-# Enable HEIF opener
-pillow_heif.register_heif_opener()
-
-import sys
+import pytest
 from PySide6.QtWidgets import QApplication
+
+pillow_heif.register_heif_opener()
 
 from filetool.core.deps import resolver
 from filetool.core.utils import run_command
@@ -32,7 +30,6 @@ def samples_dir(tmp_path_factory) -> Path:
     """Generate real, valid sample files for each image, audio, and video type."""
     sample_dir = tmp_path_factory.mktemp("samples")
 
-    # 1. Base Image generation
     base_png = sample_dir / "sample.png"
     img = Image.new("RGB", (64, 64), color=(220, 80, 50))
     img.save(base_png, "PNG")
@@ -73,7 +70,6 @@ def samples_dir(tmp_path_factory) -> Path:
     if magick:
         run_command([str(magick), str(base_png), str(base_avif)])
 
-    # 2. Base Audio generation using ffmpeg
     ffmpeg = resolver.get_tool_path("ffmpeg")
     base_wav = sample_dir / "sample.wav"
     run_command([ffmpeg, "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=0.5", str(base_wav)])
@@ -99,7 +95,6 @@ def samples_dir(tmp_path_factory) -> Path:
     base_wma = sample_dir / "sample.wma"
     run_command([ffmpeg, "-y", "-i", str(base_wav), "-c:a", "wmav2", str(base_wma)])
 
-    # 3. Base Video generation using ffmpeg
     base_mp4 = sample_dir / "sample.mp4"
     run_command([
         ffmpeg, "-y",
@@ -127,7 +122,6 @@ def samples_dir(tmp_path_factory) -> Path:
     base_gif = sample_dir / "sample.gif"
     run_command([ffmpeg, "-y", "-i", str(base_mp4), "-vf", "fps=10,scale=160:-1", str(base_gif)])
 
-    # 4. Document samples via Pandoc
     pandoc = resolver.get_tool_path("pandoc")
     base_md = sample_dir / "sample.md"
     base_md.write_text("# Sample Document\n\nThis is test text for Pandoc document conversions.\n", encoding="utf-8")
@@ -147,7 +141,6 @@ def samples_dir(tmp_path_factory) -> Path:
     base_epub = sample_dir / "sample.epub"
     run_command([pandoc, str(base_md), "-o", str(base_epub)])
 
-    # 5. Office & Slides samples
     soffice = resolver.get_tool_path("soffice")
     from pptx import Presentation
     from pptx.util import Inches
@@ -162,11 +155,9 @@ def samples_dir(tmp_path_factory) -> Path:
     base_pptx = sample_dir / "sample.pptx"
     prs.save(str(base_pptx))
 
-    # 6. PDF sample (generated with text + table from docx via LibreOffice)
     base_pdf = sample_dir / "sample.pdf"
     run_command([soffice, "--headless", "--convert-to", "pdf", "--outdir", str(sample_dir), str(base_docx)])
 
-    # 7. Spreadsheet samples
     base_csv = sample_dir / "sample.csv"
     base_csv.write_text("Item,Quantity,Price\nWidget A,10,19.99\nWidget B,5,49.50\n", encoding="utf-8")
 
@@ -181,7 +172,6 @@ def samples_dir(tmp_path_factory) -> Path:
     base_ods = sample_dir / "sample.ods"
     run_command([soffice, "--headless", "--convert-to", "ods", "--outdir", str(sample_dir), str(base_xlsx)])
 
-    # 8. Subtitle samples
     base_srt = sample_dir / "sample.srt"
     base_srt.write_text(
         "1\n00:00:01,000 --> 00:00:03,500\nHello and welcome.\n\n2\n00:00:04,000 --> 00:00:06,000\nEnjoy the video!\n",
@@ -194,7 +184,6 @@ def samples_dir(tmp_path_factory) -> Path:
         encoding="utf-8",
     )
 
-    # 9. Archive samples
     import zipfile
     import tarfile
 

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 import pytest
-from filetool.core.engines.images import convert_image
 from filetool.core.registry import registry
 
 

@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# FileTool - Finder Quick Action Installer for macOS
-# Installs "Convert with FileTool" in Finder right-click context menu (Services).
-# ==============================================================================
+# Install the "Convert with FileTool" Finder Quick Action in ~/Library/Services.
 
 set -euo pipefail
 

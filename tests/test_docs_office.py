@@ -8,7 +8,6 @@ import filetool.core  # loads all engines
 from filetool.core.registry import registry
 
 
-# 1. Document conversions
 @pytest.mark.parametrize(
     "src_ext,dest_ext",
     [
@@ -42,7 +41,6 @@ def test_document_conversions(samples_dir: Path, tmp_path: Path, src_ext: str, d
     assert out.stat().st_size > 0
 
 
-# 2. Slide conversions
 @pytest.mark.parametrize(
     "src_ext,dest_ext",
     [
@@ -66,7 +64,6 @@ def test_slide_conversions(samples_dir: Path, tmp_path: Path, src_ext: str, dest
     assert out.stat().st_size > 0
 
 
-# 3. PDF conversions
 @pytest.mark.parametrize(
     "dest_ext",
     [
@@ -95,7 +92,6 @@ def test_pdf_conversions(samples_dir: Path, tmp_path: Path, dest_ext: str):
     assert out.stat().st_size > 0
 
 
-# 4. Spreadsheet conversions
 @pytest.mark.parametrize(
     "src_ext,dest_ext",
     [

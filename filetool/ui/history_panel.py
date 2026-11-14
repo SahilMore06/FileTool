@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
-from typing import List
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -19,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from filetool.ui.actions import copy_file_path, open_in_terminal, reveal_in_finder
+from filetool.ui.components import format_byte_size
 
 
 class HistoryPanel(QFrame):
@@ -46,7 +45,6 @@ class HistoryPanel(QFrame):
 
         layout.addLayout(header_layout)
 
-        # Table
         self.table = QTableWidget()
         self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels([
@@ -66,36 +64,24 @@ class HistoryPanel(QFrame):
         layout.addWidget(self.table)
 
     def add_entry(self, src: Path, dest: Path) -> None:
-        """Add completed conversion item to history table."""
+        """Append a completed conversion row to the history table."""
         row = self.table.rowCount()
         self.table.insertRow(row)
 
-        # 1. Source
         src_item = QTableWidgetItem(src.name)
         src_item.setToolTip(str(src))
         self.table.setItem(row, 0, src_item)
 
-        # 2. Output
         dest_item = QTableWidgetItem(dest.name)
         dest_item.setToolTip(str(dest))
         self.table.setItem(row, 1, dest_item)
 
-        # 3. Size
-        size_str = "0 B"
-        if dest.exists():
-            bytes_val = dest.stat().st_size
-            for u in ("B", "KB", "MB", "GB"):
-                if bytes_val < 1024.0:
-                    size_str = f"{bytes_val:.1f} {u}" if u != "B" else f"{bytes_val} B"
-                    break
-                bytes_val /= 1024.0
+        size_str = format_byte_size(dest.stat().st_size) if dest.exists() else "0 B"
         self.table.setItem(row, 2, QTableWidgetItem(size_str))
 
-        # 4. Timestamp
         now_str = datetime.now().strftime("%H:%M:%S")
         self.table.setItem(row, 3, QTableWidgetItem(now_str))
 
-        # 5. Actions (Reveal button)
         action_widget = QFrame()
         action_layout = QHBoxLayout(action_widget)
         action_layout.setContentsMargins(4, 2, 4, 2)

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from PySide6.QtCore import QPoint, Qt
-from PySide6.QtGui import QColor, QFont, QGuiApplication, QPainter, QPainterPath, QPixmap
+from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -43,6 +43,21 @@ def trigger_haptic_tick() -> None:
             )
     except Exception as exc:
         logger.debug("Haptic feedback error: %s", exc)
+
+
+def play_sound(named: str = "Fuse") -> None:
+    """Play a system sound effect.
+
+    Args:
+        named: Name of the system sound to play (e.g., "Fuse", "Pop", "Glass", "Hero", "Morse")
+    """
+    try:
+        from AppKit import NSSound
+        sound = NSSound.soundNamed_(named)
+        if sound:
+            sound.play()
+    except Exception as exc:
+        logger.debug("Sound playback error: %s", exc)
 
 
 def reveal_in_finder(path: Path | str) -> bool:

@@ -1,77 +1,34 @@
-# Contributing to FileTool 🍊
+# Contributing
 
-Thank you for your interest in contributing to **FileTool**!
+## Development Setup
 
-FileTool is a 100% offline native macOS desktop file utility built to give Mac users a clean, fast, and completely private way to convert, compress, and manage files. We welcome contributions that maintain our core principles:
-1. **100% Offline & Private**: Zero external network requests, zero telemetry, zero analytics.
-2. **High-Performance**: Ultra-low idle CPU (<0.1%), zero UI freezing, multithreaded conversions.
-3. **Safe by Default**: Never overwrite or delete user files without explicit consent.
-
----
-
-## 🛠 Development Setup
-
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/SahilMore06/FileTool.git
-   cd FileTool
-   ```
-
-2. **Automated Setup**:
-   Run the setup script to install local Homebrew binaries and create a Python virtual environment:
-   ```bash
-   chmod +x scripts/setup.sh
-   ./scripts/setup.sh
-   ```
-
-3. **Running in Development**:
-   ```bash
-   # Launch GUI
-   .venv/bin/python app.py
-
-   # Launch CLI
-   .venv/bin/python -m filetool.cli --help
-
-   # Run Test Suite
-   .venv/bin/pytest tests/ -v
-   ```
-
----
-
-## 🏗 Architecture Overview
-
-- `filetool/core/engines/`: Format converters organized by media category (images, media, office, pdf, spreadsheets, subtitles, archives).
-- `filetool/core/tools/`: File utility operations (compress, resize, crop, trim, split, merge, metadata).
-- `filetool/platform/`: macOS platform integrations:
-  - `mac_drag_monitor.py`: Low-level drag detection state machine using Quartz event sources (`CGEventSourceButtonState`, `CGEventSourceFlagsState`) without Accessibility permissions.
-  - `mac_actions.py`: Native macOS integrations (AirDrop, float window, clipboard, terminal).
-  - `mac_window.py`: PyObjC window styling and status level management.
-- `filetool/ui/wheel/`: Tangerine-style radial wheel overlay:
-  - `geometry.py`: Radial angle calculations and concentric ring hit testing.
-  - `wheel_painter.py`: Custom QPainter rendering for segments, badges, and animations.
-  - `wheel_window.py`: Frameless transparent overlay window controller.
-- `filetool/ui/`: Main Qt window, queue table, and preferences dialog.
-
----
-
-## 📦 Building the Standalone App
-
-To package FileTool into a standalone macOS `.app`, `.dmg`, and `.zip`:
 ```bash
-chmod +x scripts/build_app.sh
-./scripts/build_app.sh
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
 ```
-Outputs:
-- `dist/FileTool.app`
-- `dist/FileTool.dmg`
-- `dist/FileTool.app.zip`
 
----
+Run tests after making changes:
 
-## 🧪 Testing Guidelines
-
-Before submitting a Pull Request, ensure all tests pass:
 ```bash
-pytest tests/ -v
+.venv/bin/pytest -v
 ```
-All new features should include unit tests in the `tests/` directory.
+
+For headless environments where Cocoa display access is unavailable, run:
+
+```bash
+QT_QPA_PLATFORM=offscreen .venv/bin/pytest -v
+```
+
+## Code Organization
+
+- `filetool/core/engines/`: Conversion handlers that register `(src_ext, dest_ext)` edges with the global `registry`. Each engine defines option metadata and handles subprocess failures with clear error tails.
+- `filetool/core/tools/`: Single-step operations (`compress`, `resize`, `crop`, `trim`, `split`, `merge`, `metadata`).
+- `filetool/platform/`: macOS-only PyObjC/Quartz code. Keep AppKit/Quartz calls guarded so non-Cocoa test runs stay safe.
+- `filetool/ui/`: Modular PySide6 views styled exclusively through design tokens in `filetool/ui/styles.py` (supporting both Light and Dark mode without hardcoded widget colors or emoji icons).
+
+## Guidelines
+
+1. Keep all processing offline and local; do not introduce network requests or external analytics.
+2. Preserve non-destructive defaults (`get_unique_output_path`) unless overwrite is explicitly selected by the user.
+3. Add or update pytest coverage in `tests/` when adding converters, tools, or UI workflows.

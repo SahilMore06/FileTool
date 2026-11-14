@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import pytest
 from filetool.platform.mac_drag_monitor import (
     MASK_COMMAND,
     MASK_CONTROL,
     MASK_SHIFT,
     VK_ESCAPE,
-    VK_LEFT,
     VK_RETURN,
     VK_RIGHT,
     DragStateMachine,
@@ -19,11 +17,9 @@ def test_mouse_down_and_movement_threshold():
     sm = DragStateMachine()
     fake_files = ["/Users/test/sample.jpg"]
 
-    # Initial state
     assert not sm.is_button_down
     assert not sm.is_file_drag
 
-    # 1. Mouse down at (100, 100)
     events = sm.update(
         timestamp=1.0,
         left_down=True,
@@ -36,30 +32,27 @@ def test_mouse_down_and_movement_threshold():
     assert not sm.is_file_drag
     assert len(events) == 0
 
-    # 2. Moved only 2px (below 4px threshold)
     events = sm.update(
         timestamp=1.05,
         left_down=True,
         flags=0,
         mouse_pos=(102.0, 100.0),
-        pasteboard_change_count=11,  # changed, but distance < 4px
+        pasteboard_change_count=11,
         get_files_fn=lambda: fake_files,
     )
     assert not sm.is_file_drag
 
-    # 3. Moved 10px (> 4px threshold), but change count unchanged
     sm.mouse_down_change_count = 10
     events = sm.update(
         timestamp=1.1,
         left_down=True,
         flags=0,
         mouse_pos=(110.0, 100.0),
-        pasteboard_change_count=10,  # unchanged
+        pasteboard_change_count=10,
         get_files_fn=lambda: fake_files,
     )
     assert not sm.is_file_drag
 
-    # 4. Moved 10px AND change count changed -> File drag active!
     events = sm.update(
         timestamp=1.15,
         left_down=True,
@@ -231,16 +224,13 @@ def test_drag_detected_when_finder_increments_change_count_during_idle():
     sm = DragStateMachine()
     fake_files = ["/Users/test/sample.docx"]
 
-    # 1. Idle tick with changeCount = 5
     sm.update(1.0, False, 0, (100.0, 100.0), 5, lambda: [])
     assert sm.last_idle_change_count == 5
 
-    # 2. Finder starts drag during the 100ms idle window, incrementing changeCount to 6
     sm.update(1.1, True, 0, (100.0, 100.0), 6, lambda: fake_files)
     assert sm.mouse_down_change_count == 6
     assert not sm.is_file_drag
 
-    # 3. Mouse moved 10px, changeCount is still 6 (unchanged since mouse down, but changed since idle!)
     events = sm.update(1.15, True, 0, (110.0, 100.0), 6, lambda: fake_files)
     assert sm.is_file_drag
     assert sm.dragged_files == fake_files
@@ -250,13 +240,9 @@ def test_modifier_tap_triggers_wheel_if_files_present_on_pasteboard():
     sm = DragStateMachine()
     fake_files = ["/Users/test/notes.txt"]
 
-    # 1. Idle tick
     sm.update(1.0, False, 0, (100.0, 100.0), 10, lambda: [])
-
-    # 2. Mouse down with changeCount = 11
     sm.update(1.1, True, 0, (100.0, 100.0), 11, lambda: fake_files)
 
-    # 3. Shift pressed down -> triggers convert wheel immediately!
     events = sm.update(1.15, True, MASK_SHIFT, (101.0, 100.0), 11, lambda: fake_files)
     assert len(events) == 1
     assert events[0].event_type == "trigger"

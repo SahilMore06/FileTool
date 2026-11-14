@@ -43,19 +43,21 @@ def tangerine_petal_pos(index: int, total: int) -> Tuple[float, float]:
 
 
 def hit_test_tangerine(dx: float, dy: float, n_items: int) -> int:
-    """Hit-test a point (dx, dy) against Tangerine petals. Returns index or -1."""
-    n = math.hypot(dx, dy)
-    if n_items <= 0 or n < TANGERINE_INNER_RADIUS or n > TANGERINE_OUTER_RADIUS + 4.0:
+    """Hit-test a point (dx, dy) relative to wheel center against petals. Returns index or -1."""
+    dist = math.hypot(dx, dy)
+    if n_items <= 0 or dist < TANGERINE_INNER_RADIUS or dist > TANGERINE_OUTER_RADIUS + 4.0:
         return -1
-    l = math.atan2(-dy, dx)
-    s = math.pi * 2.0 / n_items
-    f0 = tangerine_angle(0, n_items)
-    r = ((f0 - l) % (math.pi * 2.0) + math.pi * 2.0) % (math.pi * 2.0)
-    d = round(r / s) % n_items
-    diff = math.atan2(math.sin(l - tangerine_angle(d, n_items)), math.cos(l - tangerine_angle(d, n_items)))
-    if abs(diff) > s / 2.0 - math.asin(min(0.95, TANGERINE_GAP / 2.0 / max(n, 1.0))):
+    angle = math.atan2(-dy, dx)
+    sector_span = math.pi * 2.0 / n_items
+    first_angle = tangerine_angle(0, n_items)
+    clockwise_offset = ((first_angle - angle) % (math.pi * 2.0) + math.pi * 2.0) % (math.pi * 2.0)
+    index = round(clockwise_offset / sector_span) % n_items
+    target_angle = tangerine_angle(index, n_items)
+    angular_delta = math.atan2(math.sin(angle - target_angle), math.cos(angle - target_angle))
+    half_gap = math.asin(min(0.95, TANGERINE_GAP / 2.0 / max(dist, 1.0)))
+    if abs(angular_delta) > sector_span / 2.0 - half_gap:
         return -1
-    return d
+    return index
 
 
 @dataclass
@@ -168,36 +170,32 @@ def hit_test(
     """
     dist = math.hypot(dx, dy)
 
-    # 1. Center hub hit
     if dist < RING1_INNER_RADIUS:
         return HitResult(hit_type="hub", index=-1, ring=0)
 
-    # 2. Primary ring hit using Tangerine's formula
     if RING1_INNER_RADIUS <= dist <= RING1_OUTER_RADIUS + 6.0:
         if not primary_segments:
             return HitResult(hit_type="outside")
-        n = len(primary_segments)
-        idx = hit_test_tangerine(dx, dy, n)
-        if idx >= 0 and idx < n:
+        count = len(primary_segments)
+        idx = hit_test_tangerine(dx, dy, count)
+        if 0 <= idx < count:
             return HitResult(hit_type="segment", index=idx, ring=1, segment=primary_segments[idx])
-        # If in the small gap between petals or near boundary, fallback to clock sector
         if dist <= RING1_OUTER_RADIUS + 2.0:
             clock_deg = point_to_clock_degrees(dx, dy)
-            span = 360.0 / n
+            span = 360.0 / count
             shifted = (clock_deg + span / 2.0) % 360.0
-            idx = int(shifted // span) % n
+            idx = int(shifted // span) % count
             return HitResult(hit_type="segment", index=idx, ring=1, segment=primary_segments[idx])
 
-    # 3. Secondary ring hit (if open and active)
     if secondary_segments and RING2_INNER_RADIUS <= dist <= RING2_OUTER_RADIUS:
-        n2 = len(secondary_segments)
-        if n2 > 0:
+        sec_count = len(secondary_segments)
+        if sec_count > 0:
             clock_deg = point_to_clock_degrees(dx, dy)
-            span2 = 360.0 / n2
-            shifted2 = (clock_deg + span2 / 2.0) % 360.0
-            idx2 = int(shifted2 // span2) % n2
-            seg2 = secondary_segments[idx2] if idx2 < len(secondary_segments) else None
-            return HitResult(hit_type="secondary", index=idx2, ring=2, segment=seg2)
+            sec_span = 360.0 / sec_count
+            sec_shifted = (clock_deg + sec_span / 2.0) % 360.0
+            sec_idx = int(sec_shifted // sec_span) % sec_count
+            sec_seg = secondary_segments[sec_idx] if sec_idx < len(secondary_segments) else None
+            return HitResult(hit_type="secondary", index=sec_idx, ring=2, segment=sec_seg)
 
     return HitResult(hit_type="outside")
 

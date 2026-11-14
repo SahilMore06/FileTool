@@ -51,6 +51,13 @@ def compress_video(src: Path, dest: Path, crf: int = 28) -> Path:
     return dest
 
 
+def compress_audio(src: Path, dest: Path, bitrate: str = "128k") -> Path:
+    """Compress audio using ffmpeg at the target bitrate."""
+    from filetool.core.engines.media import convert_audio
+
+    return convert_audio(src, dest, {"bitrate": bitrate})
+
+
 def compress_pdf(src: Path, dest: Path, setting: str = "/ebook") -> Path:
     """
     Compress PDF using Ghostscript pdfwrite.
@@ -85,6 +92,9 @@ def compress_file(src: Path, dest: Path, **kwargs) -> Path:
     if cat == "Video":
         crf = kwargs.get("crf", 28)
         return compress_video(src, dest, crf=crf)
+    if cat == "Audio":
+        bitrate = str(kwargs.get("bitrate", "128k"))
+        return compress_audio(src, dest, bitrate=bitrate)
     if cat == "PDF" or ext == "pdf":
         setting = kwargs.get("setting", "/ebook")
         return compress_pdf(src, dest, setting=setting)

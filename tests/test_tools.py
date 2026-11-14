@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from PIL import Image
 import pypdf
-import pytest
 
 from filetool.core.tools.compress import compress_image, compress_pdf, compress_video
 from filetool.core.tools.crop import crop_image
@@ -102,7 +101,6 @@ def test_split_video(samples_dir: Path, tmp_path: Path):
 
 
 def test_merge_tools(samples_dir: Path, tmp_path: Path):
-    # 1. Merge PDFs
     pdf1 = samples_dir / "sample.pdf"
     dest_merged_pdf = tmp_path / "merged.pdf"
     out_pdf = merge_pdfs([pdf1, pdf1], dest_merged_pdf)
@@ -110,7 +108,6 @@ def test_merge_tools(samples_dir: Path, tmp_path: Path):
     reader = pypdf.PdfReader(str(out_pdf))
     assert len(reader.pages) == 2 * len(pypdf.PdfReader(str(pdf1)).pages)
 
-    # 2. Merge Images to PDF
     img1 = samples_dir / "sample.png"
     img2 = samples_dir / "sample.jpg"
     dest_imgs_pdf = tmp_path / "images_to_pdf.pdf"
@@ -119,7 +116,6 @@ def test_merge_tools(samples_dir: Path, tmp_path: Path):
     reader2 = pypdf.PdfReader(str(out_img_pdf))
     assert len(reader2.pages) == 2
 
-    # 3. Merge Videos
     vid1 = samples_dir / "sample.mp4"
     dest_merged_vid = tmp_path / "merged.mp4"
     out_vid = merge_videos([vid1, vid1], dest_merged_vid)

@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import logging
-import os
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
 
@@ -35,6 +34,8 @@ class ConversionJob:
     options: Dict[str, Any] = field(default_factory=dict)
     overwrite: bool = False
     delete_original: bool = False
+    # "convert" (registry converter) or a same-format op from image_ops ("resize", "compress")
+    operation: str = "convert"
 
     status: JobStatus = JobStatus.PENDING
     progress: int = 0
@@ -91,18 +92,33 @@ class ConversionTask(QRunnable):
         in_ext = src.suffix.lower().lstrip(".")
         out_ext = self.job.dest_ext.lower().lstrip(".")
 
-        conv = registry.get_converter(in_ext, out_ext)
-        if not conv:
-            msg = f"No converter available for .{in_ext} -> .{out_ext}"
-            self.job.status = JobStatus.FAILED
-            self.job.error_message = msg
-            self.signals.failed.emit(self.job.id, msg, "")
-            return
+        if self.job.operation != "convert":
+            from filetool.core import image_ops
+            fn = image_ops.OPERATIONS.get(self.job.operation)
+            if fn is None or not image_ops.supports(src):
+                msg = f"{self.job.operation.title()} is not supported for .{in_ext} files"
+                self.job.status = JobStatus.FAILED
+                self.job.error_message = msg
+                self.signals.failed.emit(self.job.id, msg, "")
+                return
+            convert_fn = fn
+            out_ext = in_ext
+            stem = f"{src.stem}_{image_ops.OPERATION_SUFFIX[self.job.operation]}"
+        else:
+            conv = registry.get_converter(in_ext, out_ext)
+            if not conv:
+                msg = f"No converter available for .{in_ext} -> .{out_ext}"
+                self.job.status = JobStatus.FAILED
+                self.job.error_message = msg
+                self.signals.failed.emit(self.job.id, msg, "")
+                return
+            convert_fn = conv.convert_fn
+            stem = src.stem
 
         # Target directory
         out_dir = self.job.target_dir if self.job.target_dir else src.parent
         out_dir.mkdir(parents=True, exist_ok=True)
-        dest_candidate = out_dir / f"{src.stem}.{out_ext}"
+        dest_candidate = out_dir / f"{stem}.{out_ext}"
 
         if not self.job.overwrite:
             dest_path = get_unique_output_path(dest_candidate)
@@ -118,7 +134,7 @@ class ConversionTask(QRunnable):
                 self.signals.cancelled.emit(self.job.id)
                 return
 
-            result_path = conv.convert_fn(src, dest_path, self.job.options)
+            result_path = convert_fn(src, dest_path, self.job.options)
             self.signals.progress.emit(self.job.id, 90)
 
             if self.job.cancel_requested:

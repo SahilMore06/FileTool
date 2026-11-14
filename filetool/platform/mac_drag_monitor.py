@@ -117,9 +117,7 @@ class DragStateMachine:
             elif key_states.get(VK_DOWN):
                 events.append(DragEvent(event_type="nav", direction="down", position=mouse_pos))
 
-        # 1. Handle Mouse Down / Up transitions
         if left_down and not self.is_button_down:
-            # Mouse down started
             self.is_button_down = True
             self.mouse_down_pos = mouse_pos
             self.mouse_down_change_count = pasteboard_change_count
@@ -129,13 +127,10 @@ class DragStateMachine:
             self.modifier_multi_pressed = False
 
         elif not left_down:
-            # Mouse is up (idle or released)
             self.last_idle_change_count = pasteboard_change_count
             if self.is_button_down:
-                # Mouse button released
                 self.is_button_down = False
                 if self.wheel_open:
-                    # Dropped on wheel!
                     events.append(
                         DragEvent(
                             event_type="drop",
@@ -152,9 +147,8 @@ class DragStateMachine:
                 self.modifier_multi_pressed = False
                 return events
 
-        cursor_moved = (mouse_pos != self.last_mouse_pos)
+        cursor_moved = mouse_pos != self.last_mouse_pos
 
-        # 2. While mouse button is held, detect if active file drag
         if self.is_button_down:
             if not self.is_file_drag:
                 dx = mouse_pos[0] - self.mouse_down_pos[0]
@@ -170,7 +164,6 @@ class DragStateMachine:
                         self.is_file_drag = True
                         self.dragged_files = files
 
-            # If wheel is open and cursor moved, emit move event
             if self.wheel_open and cursor_moved:
                 events.append(
                     DragEvent(
@@ -181,7 +174,6 @@ class DragStateMachine:
                     )
                 )
 
-        # 3. Track modifier keys (immediate trigger on press, stays open)
         active_keys = set()
         if flags & MASK_SHIFT:
             active_keys.add("shift")
@@ -479,7 +471,6 @@ class MacDragMonitor(QObject):
 
         now = time.monotonic()
 
-        # 1. Query mouse button state: Combine Quartz and Cocoa
         left_down = bool(
             self._Quartz.CGEventSourceButtonState(
                 self._Quartz.kCGEventSourceStateCombinedSessionState,
@@ -492,13 +483,11 @@ class MacDragMonitor(QObject):
             or (self._NSEvent.pressedMouseButtons() & 1)
         )
 
-        # 2. Adjust polling interval dynamically
         needed_interval = INTERVAL_ACTIVE_MS if (left_down or self.state_machine.wheel_open) else INTERVAL_IDLE_MS
         if needed_interval != self._current_interval_ms:
             self._current_interval_ms = needed_interval
             self._timer.setInterval(needed_interval)
 
-        # 3. Query modifier flags: Combine Quartz CombinedSession + HID + Cocoa
         flags = int(
             self._Quartz.CGEventSourceFlagsState(
                 self._Quartz.kCGEventSourceStateCombinedSessionState
@@ -509,14 +498,10 @@ class MacDragMonitor(QObject):
             | self._NSEvent.modifierFlags()
         )
 
-        # 4. Query mouse position
         loc = self._NSEvent.mouseLocation()
         mouse_pos = (float(loc.x), float(loc.y))
-
-        # 5. Query pasteboard change count
         change_count = int(self._drag_pb.changeCount())
 
-        # 6. Query key states if wheel is open (Escape, Return, Arrows)
         key_states: Optional[Dict[int, bool]] = None
         return_down = bool(self._Quartz.CGEventSourceKeyState(self._Quartz.kCGEventSourceStateCombinedSessionState, VK_RETURN))
 
@@ -530,7 +515,6 @@ class MacDragMonitor(QObject):
                 VK_DOWN: bool(self._Quartz.CGEventSourceKeyState(self._Quartz.kCGEventSourceStateCombinedSessionState, VK_DOWN)),
             }
         elif self.finder_enter_enabled:
-            # Stretch goal: Return pressed on Finder selection opens format wheel
             if self._last_return_down and not return_down:
                 try:
                     from AppKit import NSWorkspace
@@ -545,7 +529,6 @@ class MacDragMonitor(QObject):
 
         self._last_return_down = return_down
 
-        # 7. Step state machine
         events = self.state_machine.update(
             timestamp=now,
             left_down=left_down,
@@ -556,7 +539,6 @@ class MacDragMonitor(QObject):
             key_states=key_states,
         )
 
-        # 8. Dispatch events
         for ev in events:
             if ev.event_type == "trigger" and ev.wheel_type:
                 self.wheel_triggered.emit(ev.wheel_type, ev.position[0], ev.position[1], ev.files)

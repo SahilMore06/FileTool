@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 import pytest
 
@@ -126,3 +125,141 @@ def test_mixed_selection_forces_actions_wheel(wheel_window, tmp_path):
     labels = [s.label for s in wheel_window.primary_segments]
     assert "AIRDROP" in labels
     assert "MOVE" in labels
+
+
+def test_execute_wheel_tool_actions(samples_dir: Path, tmp_path: Path):
+    import shutil
+    import zipfile
+    import pypdf
+    from PIL import Image
+    from filetool.ui.wheel.wheel_window import execute_wheel_tool
+
+    img_src = tmp_path / "pic.png"
+    pdf_a = tmp_path / "doc_a.pdf"
+    pdf_b = tmp_path / "doc_b.pdf"
+    wav_src = tmp_path / "clip.wav"
+    shutil.copy(samples_dir / "sample.png", img_src)
+    shutil.copy(samples_dir / "sample.pdf", pdf_a)
+    shutil.copy(samples_dir / "sample.pdf", pdf_b)
+    shutil.copy(samples_dir / "sample.wav", wav_src)
+
+    with Image.open(img_src) as orig:
+        orig_w, orig_h = orig.size
+
+    resized = execute_wheel_tool("resize_image", [str(img_src)])
+    assert resized.exists()
+    with Image.open(resized) as im:
+        assert im.size == (max(1, int(orig_w * 0.5)), max(1, int(orig_h * 0.5)))
+
+    cropped = execute_wheel_tool("crop_image", [str(img_src)])
+    assert cropped.exists()
+
+    clean_img = execute_wheel_tool("strip_metadata", [str(img_src)])
+    clean_pdf = execute_wheel_tool("strip_metadata", [str(pdf_a)])
+    assert clean_img.exists() and clean_pdf.exists()
+
+    pdf_out = execute_wheel_tool("to_pdf", [str(img_src), str(resized)])
+    assert pdf_out.exists()
+    assert len(pypdf.PdfReader(str(pdf_out)).pages) == 2
+
+    zip_out = execute_wheel_tool("compress_generic", [str(wav_src), str(img_src)])
+    assert zip_out.exists()
+    with zipfile.ZipFile(zip_out, "r") as zf:
+        assert "clip.wav" in zf.namelist()
+        assert "pic.png" in zf.namelist()
+
+    split_dir = execute_wheel_tool("split_pdf", [str(pdf_a)])
+    assert split_dir.is_dir() and any(split_dir.glob("*.pdf"))
+
+    merged_pdf = execute_wheel_tool("merge_pdf", [str(pdf_a), str(pdf_b)])
+    assert merged_pdf.exists()
+
+    with pytest.raises(ValueError):
+        execute_wheel_tool("merge_pdf", [str(pdf_a)])
+
+    with pytest.raises(ValueError):
+        execute_wheel_tool("unknown_tool", [str(img_src)])
+
+
+def test_wheel_theme_icon_tinting_and_painting(wheel_window, samples_dir: Path):
+    """WheelPainter renders light/dark states, tinted icons, secondary ring, and status rings cleanly."""
+    from PySide6.QtGui import QColor, QPainter, QPixmap
+    from filetool.ui.wheel.wheel_painter import IconCache, WheelPainter, WheelState
+
+    cache = IconCache()
+    pix_dark = cache.get_icon("compress", 18, QColor(0x20, 0x21, 0x24))
+    pix_white = cache.get_icon("compress", 18, QColor(0xFF, 0xFF, 0xFF))
+    assert not pix_dark.isNull() and not pix_white.isNull()
+    assert len(cache._cache) >= 2
+
+    img = samples_dir / "sample.png"
+    wheel_window.dragged_files = [str(img)]
+    wheel_window.wheel_type = "convert"
+    wheel_window._populate_segments()
+    wheel_window.set_theme(True, "ocean")
+    assert wheel_window.dark_mode is True
+
+    painter_engine = WheelPainter()
+    canvas = QPixmap(520, 520)
+    more_seg = next((s for s in wheel_window.primary_segments if s.sub_items), None)
+    sec_segs = more_seg.sub_items if more_seg else None
+
+    for drop_st in ("none", "progress", "done", "error"):
+        for dark in (False, True):
+            qp = QPainter(canvas)
+            painter_engine.paint(
+                qp,
+                520,
+                520,
+                WheelState(
+                    wheel_type="convert",
+                    primary_segments=wheel_window.primary_segments,
+                    secondary_segments=sec_segs,
+                    hovered_index=0,
+                    hovered_ring=2 if sec_segs else 1,
+                    hover_progress=0.8,
+                    dark_mode=dark,
+                    accent_color="#2E86DE",
+                    accent_hover="#1F6EC4",
+                    drop_state=drop_st,
+                    job_progress=64,
+                    file_path=str(img),
+                    file_name="sample.png",
+                    file_count=2,
+                ),
+            )
+            qp.end()
+
+
+def test_wheel_switch_updates_segments_between_modes(wheel_window, tmp_path: Path):
+    img = tmp_path / "shot.png"
+    img.write_text("x")
+
+    wheel_window.dragged_files = [str(img)]
+    wheel_window.wheel_type = "convert"
+    wheel_window._populate_segments()
+    convert_types = {seg.action_type for seg in wheel_window.primary_segments}
+    assert "convert" in convert_types
+
+    wheel_window.switch_wheel("tools")
+    tool_types = {seg.action_type for seg in wheel_window.primary_segments}
+    assert tool_types == {"tool"}
+
+
+def test_wheel_window_paint_event_all_presets(wheel_window, qapp, samples_dir: Path):
+    """Exercise live WheelWindow.paintEvent across all accent presets."""
+    from filetool.ui.styles import ACCENT_PRESETS
+
+    img = samples_dir / "sample.png"
+    wheel_window.show_wheel("convert", 300.0, 300.0, [str(img)])
+    try:
+        for dark in (False, True):
+            for preset_key in ACCENT_PRESETS:
+                wheel_window.set_theme(dark, preset_key)
+                qapp.processEvents()
+                pix = wheel_window.grab()
+                assert not pix.isNull()
+    finally:
+        if wheel_window._open_anim:
+            wheel_window._open_anim.stop()
+        wheel_window.hide()

@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# FileTool - macOS Application Bundle (.app) Packaging Script
-# Uses PyInstaller to build a standalone, double-clickable FileTool.app bundle.
-# ==============================================================================
+# Package FileTool as a standalone macOS .app bundle via PyInstaller.
 
 set -euo pipefail
 

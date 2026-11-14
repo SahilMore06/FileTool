@@ -1,17 +1,10 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# FileTool - Automated Setup Script for macOS (Apple Silicon / Intel)
-# Installs all local CLI tools via Homebrew and configures Python environment.
-# All tools run completely offline. No telemetry or network calls at runtime.
-# ==============================================================================
+# Install external CLI dependencies (via Homebrew) and configure the local .venv.
 
 set -euo pipefail
 
-echo "============================================================"
-echo "          Installing FileTool Dependencies for macOS        "
-echo "============================================================"
+echo "Installing FileTool dependencies for macOS..."
 
-# 1. Check for Homebrew
 if command -v brew >/dev/null 2>&1; then
     BREW_BIN=$(command -v brew)
 elif [[ -x "/opt/homebrew/bin/brew" ]]; then
@@ -25,9 +18,8 @@ else
     exit 1
 fi
 
-echo "✔ Found Homebrew at: ${BREW_BIN}"
+echo "Found Homebrew at: ${BREW_BIN}"
 
-# 2. Install external CLI dependencies
 echo ""
 echo "--> Installing local external conversion binaries..."
 FORMULAE=(
@@ -56,7 +48,6 @@ else
     "${BREW_BIN}" install --cask libreoffice || echo "Warning: LibreOffice install via Homebrew failed; please download manually if needed."
 fi
 
-# 3. Locate Python 3.12
 echo ""
 echo "--> Setting up Python 3.12 environment..."
 PYTHON_BIN=""
@@ -76,9 +67,8 @@ if [[ -z "${PYTHON_BIN}" ]]; then
     PYTHON_BIN="/opt/homebrew/bin/python3.12"
 fi
 
-echo "✔ Using Python: ${PYTHON_BIN} ($("${PYTHON_BIN}" --version))"
+echo "Using Python: ${PYTHON_BIN} ($("${PYTHON_BIN}" --version))"
 
-# 4. Create virtual environment
 if [[ ! -d ".venv" ]]; then
     echo "Creating virtual environment in .venv..."
     "${PYTHON_BIN}" -m venv .venv

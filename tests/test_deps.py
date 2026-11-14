@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-from filetool.core.deps import ToolResolver, check_dependencies, format_dependency_report, resolver
+from filetool.core.deps import ToolResolver, format_dependency_report, resolver
 
 
 def test_resolver_finds_essential_tools():

@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from typing import List
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QDragEnterEvent, QDragLeaveEvent, QDropEvent, QKeySequence, QShortcut
+from PySide6.QtGui import QColor, QDragEnterEvent, QDragLeaveEvent, QDropEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -16,6 +14,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QVBoxLayout,
 )
+
+from filetool.ui.components import IconWidget, collect_paths_from_urls
 
 
 class DropZone(QFrame):
@@ -34,25 +34,24 @@ class DropZone(QFrame):
         layout.setAlignment(Qt.AlignCenter)
         layout.setSpacing(12)
 
-        # Drop icon
-        self.icon_label = QLabel("🍊")
-        self.icon_label.setStyleSheet("font-size: 48px;")
-        self.icon_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.icon_label)
+        self.icon_label = IconWidget("upload", size=44, color=QColor(0xBF, 0x45, 0x20))
+        icon_row = QHBoxLayout()
+        icon_row.setAlignment(Qt.AlignCenter)
+        icon_row.addWidget(self.icon_label)
+        layout.addLayout(icon_row)
 
-        # Main Title
         self.title_label = QLabel("Drag & Drop files or folders here")
         self.title_label.setObjectName("dropTitle")
         self.title_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.title_label)
 
-        # Subtitle
-        self.sub_label = QLabel("All processing happens offline and locally on your Mac")
+        self.sub_label = QLabel(
+            "Offline on your Mac · Hold Shift, Cmd, or Ctrl while dragging in Finder for the quick wheel"
+        )
         self.sub_label.setObjectName("dropSubtitle")
         self.sub_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.sub_label)
 
-        # "Choose Files..." button
         btn_layout = QHBoxLayout()
         btn_layout.setAlignment(Qt.AlignCenter)
         self.browse_btn = QPushButton("Choose Files…")
@@ -63,7 +62,6 @@ class DropZone(QFrame):
 
         layout.addLayout(btn_layout)
 
-        # Shortcut Cmd+O
         self.shortcut = QShortcut(QKeySequence("Ctrl+O"), self)
         self.shortcut.activated.connect(self._open_file_dialog)
 
@@ -75,50 +73,32 @@ class DropZone(QFrame):
             "All Files (*.*)",
         )
         if files:
-            paths = [Path(f) for f in files]
-            self.files_dropped.emit(paths)
+            self.files_dropped.emit([Path(f) for f in files])
+
+    def _set_hovered(self, hovered: bool) -> None:
+        self.setProperty("hovered", hovered)
+        self.style().unpolish(self)
+        self.style().polish(self)
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
-            self.setProperty("hovered", True)
-            self.style().unpolish(self)
-            self.style().polish(self)
+            self._set_hovered(True)
         else:
             event.ignore()
 
     def dragLeaveEvent(self, event: QDragLeaveEvent) -> None:
-        self.setProperty("hovered", False)
-        self.style().unpolish(self)
-        self.style().polish(self)
+        self._set_hovered(False)
         event.accept()
 
     def dropEvent(self, event: QDropEvent) -> None:
-        self.setProperty("hovered", False)
-        self.style().unpolish(self)
-        self.style().polish(self)
+        self._set_hovered(False)
 
         urls = event.mimeData().urls()
         if not urls:
             return
 
-        collected_paths: List[Path] = []
-        for url in urls:
-            local_path = Path(url.toLocalFile()).resolve()
-            if not local_path.exists():
-                continue
-
-            if local_path.is_file():
-                # Avoid hidden system metadata files (.DS_Store)
-                if not local_path.name.startswith("."):
-                    collected_paths.append(local_path)
-            elif local_path.is_dir():
-                # Recursively discover files in directory
-                for root, _, files in os.walk(local_path):
-                    for fname in files:
-                        if not fname.startswith("."):
-                            collected_paths.append(Path(root) / fname)
-
+        collected_paths = collect_paths_from_urls(urls)
         if collected_paths:
             self.files_dropped.emit(collected_paths)
             event.acceptProposedAction()

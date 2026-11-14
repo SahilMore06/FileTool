@@ -8,9 +8,9 @@ stealing focus or activating the app.
 from __future__ import annotations
 
 import logging
-from typing import Optional, Tuple
+from typing import Tuple
 
-from PySide6.QtCore import QPoint, QRect, Qt
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QWidget
 
@@ -28,6 +28,8 @@ NS_COLLECTION_FULL_SCREEN_AUXILIARY = 1 << 8
 
 def get_ns_window(widget: QWidget):
     """Retrieve PyObjC NSWindow pointer from a QWidget's native winId."""
+    if QGuiApplication.platformName() != "cocoa":
+        return None
     try:
         import objc
         view_ptr = int(widget.winId())
@@ -50,17 +52,10 @@ def configure_overlay_window(widget: QWidget) -> bool:
         return False
 
     try:
-        # 1. Window Level: Above standard windows and spaces
         ns_win.setLevel_(NS_STATUS_WINDOW_LEVEL)
-
-        # 2. Collection Behavior: Visible on all desktops, spaces, and over fullscreen apps
         behavior = NS_COLLECTION_CAN_JOIN_ALL_SPACES | NS_COLLECTION_FULL_SCREEN_AUXILIARY
         ns_win.setCollectionBehavior_(behavior)
-
-        # 3. Do not hide when another application is active
         ns_win.setHidesOnDeactivate_(False)
-
-        # 4. Accept mouse tracking and events
         ns_win.setIgnoresMouseEvents_(False)
         ns_win.setAcceptsMouseMovedEvents_(True)
 

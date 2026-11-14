@@ -2,17 +2,11 @@
 
 from __future__ import annotations
 
-import math
 import pytest
 
 from filetool.ui.wheel.geometry import (
-    HUB_RADIUS,
     RING1_INNER_RADIUS,
     RING1_OUTER_RADIUS,
-    RING2_INNER_RADIUS,
-    RING2_OUTER_RADIUS,
-    HitResult,
-    SegmentArc,
     clock_degrees_to_cartesian,
     hit_test,
     layout_segments,

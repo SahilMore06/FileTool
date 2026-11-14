@@ -1,31 +1,30 @@
+# Python build and cache artifacts
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
 *.egg-info/
-.installed.cfg
-*.egg
-.pytest_cache/
-.venv/
-env/
-venv/
-ENV/
+.eggs/
+build/
+dist/
 *.spec
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# macOS and archives
 .DS_Store
-scratch/
 *.dmg
 *.zip
+resources/temp_*
+
+# Scratch & local AI agent workspace config
+scratch/
+.agents/
+.claude/
+AGENTS.md
+GEMINI.md

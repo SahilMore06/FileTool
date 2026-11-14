@@ -122,7 +122,6 @@ def convert_video(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
     resolution = str(options.get("resolution", "original"))
     audio_bitrate = str(options.get("audio_bitrate", "192k"))
 
-    # Case 1: Extract audio to MP3 from Video
     if out_ext == "mp3":
         cmd = [ffmpeg, "-y", "-i", str(src), "-vn", "-c:a", "libmp3lame", "-b:a", audio_bitrate, str(dest)]
         res = run_command(cmd)
@@ -130,7 +129,6 @@ def convert_video(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
             raise RuntimeError(f"Audio extraction from video failed: {res.stderr_tail()}")
         return dest
 
-    # Case 2: Convert video to GIF
     if out_ext == "gif":
         scale_str = "scale=-2:480:flags=lanczos," if resolution != "original" else "scale=flags=lanczos,"
         filter_str = f"fps=15,{scale_str}split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse"
@@ -140,7 +138,6 @@ def convert_video(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
             raise RuntimeError(f"GIF generation failed: {res.stderr_tail()}")
         return dest
 
-    # Case 3: Convert to standard video container
     cmd = [ffmpeg, "-y", "-i", str(src)]
     cmd.extend(_get_resolution_filter(resolution))
 
