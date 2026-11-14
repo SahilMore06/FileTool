@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag name (e.g. v1.1.0)'
+        required: true
+        default: 'v1.1.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    name: Build macOS App Bundle (DMG & ZIP)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Build FileTool.app, DMG, and ZIP
+        run: |
+          chmod +x scripts/build_app.sh
+          ./scripts/build_app.sh
+
+      - name: Upload GitHub Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: FileTool ${{ inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          body: |
+            Offline batch file conversion, compression, and cursor radial drag utilities for macOS.
+
+            ### Installation
+            1. Download `FileTool.dmg` (recommended) or `FileTool.app.zip`.
+            2. Drag `FileTool.app` into `/Applications`.
+            3. On first launch, right-click (Control-click) `FileTool.app` and choose **Open** (or run `xattr -cr /Applications/FileTool.app`).
+
+            Verify integrity with `shasum -a 256 -c SHA256SUMS.txt`.
+          files: |
+            dist/FileTool.dmg
+            dist/FileTool.app.zip
+            dist/SHA256SUMS.txt

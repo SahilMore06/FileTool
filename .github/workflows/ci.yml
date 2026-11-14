@@ -23,6 +23,8 @@ jobs:
       - name: Install macOS CLI dependencies via Homebrew
         run: |
           brew install ffmpeg imagemagick pandoc poppler ghostscript sevenzip || true
+          brew install --cask libreoffice --no-quarantine || true
+          ls -la /Applications/LibreOffice.app/Contents/MacOS/soffice || true
 
       - name: Install Python dependencies
         run: |
@@ -30,5 +32,7 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Run Pytest
+        env:
+          QT_QPA_PLATFORM: offscreen
         run: |
           pytest -v

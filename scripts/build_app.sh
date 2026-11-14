@@ -8,8 +8,11 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 cd "${ROOT_DIR}"
 
+APP_VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' filetool/__init__.py | head -n 1)"
+APP_VERSION="${APP_VERSION:-1.1.0}"
+
 echo "============================================================"
-echo "          Building FileTool.app for macOS (Apple Silicon)   "
+echo "     Building FileTool v${APP_VERSION} (.app) for macOS     "
 echo "============================================================"
 
 # Ensure pyinstaller is available
@@ -59,6 +62,9 @@ echo "Running PyInstaller..."
     --hidden-import "filetool.platform.mac_drag_monitor" \
     --hidden-import "filetool.platform.mac_actions" \
     --hidden-import "filetool.platform.mac_window" \
+    --hidden-import "filetool.core.legal" \
+    --hidden-import "filetool.ui.onboarding" \
+    --hidden-import "filetool.ui.tray_popover" \
     --hidden-import "filetool.ui.wheel.wheel_window" \
     --hidden-import "filetool.ui.wheel.wheel_painter" \
     --hidden-import "filetool.ui.wheel.geometry" \
@@ -95,11 +101,11 @@ if [[ -f "${INFO_PLIST}" ]]; then
     /usr/libexec/PlistBuddy -c "Set :CFBundleName FileTool" "${INFO_PLIST}" 2>/dev/null || \
     /usr/libexec/PlistBuddy -c "Add :CFBundleName string FileTool" "${INFO_PLIST}" 2>/dev/null || true
 
-    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 1.0.0" "${INFO_PLIST}" 2>/dev/null || \
-    /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string 1.0.0" "${INFO_PLIST}" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${APP_VERSION}" "${INFO_PLIST}" 2>/dev/null || \
+    /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string ${APP_VERSION}" "${INFO_PLIST}" 2>/dev/null || true
 
-    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion 1.0.0" "${INFO_PLIST}" 2>/dev/null || \
-    /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string 1.0.0" "${INFO_PLIST}" 2>/dev/null || true
+    /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${APP_VERSION}" "${INFO_PLIST}" 2>/dev/null || \
+    /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string ${APP_VERSION}" "${INFO_PLIST}" 2>/dev/null || true
 
     /usr/libexec/PlistBuddy -c "Set :NSAppleEventsUsageDescription 'FileTool uses Apple Events to reveal converted files in Finder.'" "${INFO_PLIST}" 2>/dev/null || \
     /usr/libexec/PlistBuddy -c "Add :NSAppleEventsUsageDescription string 'FileTool uses Apple Events to reveal converted files in Finder.'" "${INFO_PLIST}" 2>/dev/null || true
@@ -122,11 +128,20 @@ echo "Creating downloadable distribution packages (ZIP and DMG)..."
         rm -f "FileTool.dmg"
         hdiutil create -volname "FileTool" -srcfolder "FileTool.app" -ov -format UDZO "FileTool.dmg"
     fi
+
+    if command -v shasum >/dev/null 2>&1; then
+        echo "Generating SHA256SUMS.txt..."
+        rm -f "SHA256SUMS.txt"
+        for pkg in FileTool.dmg FileTool.app.zip; do
+            [[ -f "${pkg}" ]] && shasum -a 256 "${pkg}" >> "SHA256SUMS.txt"
+        done
+    fi
 )
 
 echo ""
 echo "============================================================"
-echo "✔ Successfully Built: dist/FileTool.app"
+echo "✔ Successfully Built: dist/FileTool.app (v${APP_VERSION})"
 echo "✔ Downloadable ZIP:   dist/FileTool.app.zip"
 [[ -f "dist/FileTool.dmg" ]] && echo "✔ Downloadable DMG:   dist/FileTool.dmg"
+[[ -f "dist/SHA256SUMS.txt" ]] && echo "✔ Checksums:          dist/SHA256SUMS.txt"
 echo "============================================================"
