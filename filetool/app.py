@@ -19,7 +19,9 @@ from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
 from filetool.core.deps import TOOLS_METADATA, resolver
+from filetool.core.legal import LEGAL_VERSION
 from filetool.core.utils import setup_logging
+from filetool.platform.mac_actions import trigger_haptic_tick
 from filetool.platform.mac_drag_monitor import MacDragMonitor
 from filetool.platform.mac_window import mac_screen_to_qt_coords
 from filetool.ui.components import create_brand_icon, create_brand_pixmap
@@ -188,11 +190,25 @@ def set_macos_accessory_mode(enabled: bool) -> None:
         logger.debug("Failed configuring NSApp activation policy: %s", exc)
 
 
+def needs_first_boot_onboarding(qsettings: QSettings) -> bool:
+    """Return True when first-run intro or Privacy/Terms consent has not been accepted."""
+    completed = bool(qsettings.value("onboarding_completed", False, type=bool))
+    accepted = bool(qsettings.value("legal_accepted", False, type=bool))
+    version = qsettings.value("legal_accepted_version", "", type=str)
+    return (not completed) or (not accepted) or (version != LEGAL_VERSION)
+
+
 def main() -> int:
     setup_logging()
 
     parser = argparse.ArgumentParser(description="FileTool - Native macOS file tool")
     parser.add_argument("--daemon", "--background", dest="daemon", action="store_true", help="Start minimized in menu-bar")
+    parser.add_argument("--intro", action="store_true", help="Open starter install animation, tour, and Terms & Privacy")
+    parser.add_argument(
+        "--reset-onboarding",
+        action="store_true",
+        help="Reset first-boot onboarding acceptance state before launching",
+    )
     args, unknown = parser.parse_known_args()
 
     QApplication.setHighDpiScaleFactorRoundingPolicy(
@@ -205,6 +221,11 @@ def main() -> int:
     app.setQuitOnLastWindowClosed(False)
 
     qsettings = QSettings("FileTool", "FileTool")
+    if args.reset_onboarding:
+        for key in ("onboarding_completed", "legal_accepted", "legal_accepted_version", "legal_accepted_at"):
+            qsettings.remove(key)
+        qsettings.sync()
+
     accessory_mode = qsettings.value("accessory_mode", True, type=bool)
     set_macos_accessory_mode(accessory_mode)
 
@@ -296,7 +317,18 @@ def main() -> int:
     window.queue_progress_changed.connect(on_queue_progress)
     monitor.start()
 
+    def start_onboarding(first_boot: bool = False):
+        _activate_for_popover()
+        ob_win = window.open_onboarding(first_boot=first_boot, initial_step=0, qsettings=qsettings)
+        ob_win.onboarding_completed.connect(lambda _r: tray_animator.pulse_turn(180.0, 520))
+        if first_boot:
+            ob_win.onboarding_declined.connect(app.quit)
+        return ob_win
+
     def show_main_window():
+        if needs_first_boot_onboarding(qsettings):
+            start_onboarding(first_boot=True)
+            return
         _activate_for_popover()
         window.show()
         window.raise_()
@@ -304,16 +336,23 @@ def main() -> int:
         window.logo.spin_once(60.0, 300)
 
     def open_prefs():
+        if needs_first_boot_onboarding(qsettings):
+            start_onboarding(first_boot=True)
+            return
         show_main_window()
         window._open_settings()
 
     def open_deps():
+        if needs_first_boot_onboarding(qsettings):
+            start_onboarding(first_boot=True)
+            return
         show_main_window()
         window._show_dep_report()
 
     def on_wheel_toggled(enabled: bool):
         qsettings.setValue("wheel_enabled", enabled)
         window.settings_page.sw_wheel.setChecked(enabled)
+        trigger_haptic_tick("alignment")
         tray_animator.pulse_turn(60.0 if enabled else -60.0, 260)
 
     def on_popover_files_dropped(paths: list):
@@ -357,8 +396,11 @@ def main() -> int:
     if cli_files:
         window._on_files_dropped(cli_files)
 
-    # Show main window unless started with --daemon
-    if not args.daemon:
+    # First-boot starter install animation & Privacy/Terms acceptance, or explicit --intro preview
+    first_boot_pending = needs_first_boot_onboarding(qsettings)
+    if args.intro or (first_boot_pending and not args.daemon):
+        start_onboarding(first_boot=first_boot_pending)
+    elif not args.daemon:
         show_main_window()
 
     return app.exec()

@@ -8,9 +8,9 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Sequence, Tuple
 
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, Qt, QTimer
 from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -27,22 +27,74 @@ LAUNCH_AGENT_LABEL = "com.filetool.app"
 LAUNCH_AGENT_PATH = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_AGENT_LABEL}.plist"
 
 
-def trigger_haptic_tick() -> None:
-    """Trigger a subtle macOS trackpad haptic tick on completion."""
+def trigger_haptic_tick(pattern: str = "generic", when: str = "now") -> bool:
+    """Trigger a macOS Force Touch trackpad haptic pulse.
+
+    Args:
+        pattern: One of ``"generic"``, ``"alignment"``, or ``"level_change"``.
+        when: Performance timing hint (``"now"``, ``"draw_completed"``, ``"default"``).
+
+    Returns:
+        ``True`` if ``NSHapticFeedbackManager`` performed the pulse, else ``False``.
+    """
     try:
         from AppKit import (
             NSHapticFeedbackManager,
+            NSHapticFeedbackPatternAlignment,
             NSHapticFeedbackPatternGeneric,
+            NSHapticFeedbackPatternLevelChange,
+            NSHapticFeedbackPerformanceTimeDefault,
+            NSHapticFeedbackPerformanceTimeDrawCompleted,
             NSHapticFeedbackPerformanceTimeNow,
         )
+
+        pattern_map = {
+            "generic": NSHapticFeedbackPatternGeneric,
+            "alignment": NSHapticFeedbackPatternAlignment,
+            "level_change": NSHapticFeedbackPatternLevelChange,
+        }
+        timing_map = {
+            "now": NSHapticFeedbackPerformanceTimeNow,
+            "draw_completed": NSHapticFeedbackPerformanceTimeDrawCompleted,
+            "default": NSHapticFeedbackPerformanceTimeDefault,
+        }
+        chosen_pattern = pattern_map.get(pattern.lower(), NSHapticFeedbackPatternGeneric)
+        chosen_when = timing_map.get(when.lower(), NSHapticFeedbackPerformanceTimeNow)
+
         performer = NSHapticFeedbackManager.defaultPerformer()
         if performer:
-            performer.performFeedbackPattern_performanceTime_(
-                NSHapticFeedbackPatternGeneric,
-                NSHapticFeedbackPerformanceTimeNow,
-            )
+            performer.performFeedbackPattern_performanceTime_(chosen_pattern, chosen_when)
+            return True
     except Exception as exc:
         logger.debug("Haptic feedback error: %s", exc)
+    return False
+
+
+def play_tactile_feedback(pattern: str = "generic", sound_name: Optional[str] = None) -> bool:
+    """Trigger trackpad haptic feedback paired with an optional subtle macOS system sound."""
+    fired = trigger_haptic_tick(pattern=pattern)
+    if sound_name and QGuiApplication.platformName() != "offscreen":
+        play_sound(sound_name)
+    return fired
+
+
+def trigger_haptic_sequence(
+    steps: Sequence[Tuple[int, str]],
+    parent=None,
+) -> List[QTimer]:
+    """Schedule a rhythmic sequence of ``(delay_ms, pattern)`` trackpad haptic pulses."""
+    timers: List[QTimer] = []
+    for delay_ms, pattern in steps:
+        delay = max(0, int(delay_ms))
+        if delay == 0:
+            trigger_haptic_tick(pattern=pattern)
+            continue
+        timer = QTimer(parent)
+        timer.setSingleShot(True)
+        timer.timeout.connect(lambda p=pattern: trigger_haptic_tick(pattern=p))
+        timer.start(delay)
+        timers.append(timer)
+    return timers
 
 
 def play_sound(named: str = "Fuse") -> None:

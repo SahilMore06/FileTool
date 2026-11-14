@@ -11,11 +11,12 @@ from PySide6.QtCore import QEasingCurve, QPointF, QRectF, Qt, QTimer, QVariantAn
 from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient
 from PySide6.QtWidgets import QAbstractButton, QWidget
 
+from filetool.platform.mac_actions import trigger_haptic_tick
 from filetool.ui.wheel.animations import should_reduce_motion
 
 
 class IOSSwitch(QAbstractButton):
-    """Smooth toggle switch with reduced-motion support."""
+    """Smooth toggle switch with Force Touch haptics and reduced-motion support."""
 
     toggled_state = Signal(bool)
 
@@ -42,6 +43,7 @@ class IOSSwitch(QAbstractButton):
         self._anim.valueChanged.connect(self._on_anim_val)
 
         self.toggled.connect(self._on_toggled)
+        self.clicked.connect(lambda _c=False: trigger_haptic_tick("alignment"))
 
     def set_dark_mode(self, is_dark: bool) -> None:
         if self._dark_mode != is_dark:
@@ -125,6 +127,7 @@ class ThemeToggle(QWidget):
     def mousePressEvent(self, event):
         self._dark = not self._dark
         self.update()
+        trigger_haptic_tick("alignment")
         self.theme_changed.emit(self._dark)
 
     def paintEvent(self, event):
@@ -819,6 +822,7 @@ class LogoWidget(QWidget):
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.LeftButton:
             self.spin_once(120.0, 320)
+            trigger_haptic_tick("alignment")
             self.clicked.emit()
         super().mousePressEvent(event)
 

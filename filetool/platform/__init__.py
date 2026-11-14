@@ -5,6 +5,8 @@ import platform
 
 from filetool.platform.mac_drag_monitor import MacDragMonitor, DragStateMachine
 from filetool.platform.mac_actions import (
+    play_tactile_feedback,
+    trigger_haptic_sequence,
     trigger_haptic_tick,
     reveal_in_finder,
     send_completion_notification,
@@ -39,6 +41,8 @@ setattr(platform, "mac_window", _mw)
 __all__ = [
     "MacDragMonitor",
     "DragStateMachine",
+    "play_tactile_feedback",
+    "trigger_haptic_sequence",
     "trigger_haptic_tick",
     "reveal_in_finder",
     "send_completion_notification",

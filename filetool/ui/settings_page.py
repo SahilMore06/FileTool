@@ -20,7 +20,8 @@ from PySide6.QtWidgets import (
 )
 
 from filetool.core.deps import TOOLS_METADATA, check_dependencies, resolver
-from filetool.platform.mac_actions import is_launch_at_login_enabled, set_launch_at_login
+from filetool.core.legal import LEGAL_VERSION
+from filetool.platform.mac_actions import is_launch_at_login_enabled, set_launch_at_login, trigger_haptic_tick
 from filetool.ui.components import IOSSwitch
 from filetool.ui.styles import ACCENT_PRESETS, get_tokens
 
@@ -33,6 +34,9 @@ class SettingsPage(QScrollArea):
     theme_changed = Signal(bool)
     accent_changed = Signal(str)
     settings_changed = Signal(dict)
+    replay_onboarding_requested = Signal()
+    review_privacy_requested = Signal()
+    review_terms_requested = Signal()
 
     def __init__(self, dark_mode: bool = False, accent_key: str = "amber", parent=None):
         super().__init__(parent)
@@ -214,6 +218,43 @@ class SettingsPage(QScrollArea):
         rescan_row.addWidget(self.rescan_btn)
         deps_lay.addLayout(rescan_row)
 
+        legal_card = self._make_card("Welcome Intro, Privacy & Terms", lay)
+        legal_lay = legal_card.layout()
+
+        legal_status_row = QHBoxLayout()
+        legal_status_row.addWidget(QLabel("First-Run Privacy & Terms Status"))
+        legal_status_row.addStretch()
+        self.legal_status_badge = QLabel()
+        self.legal_status_badge.setObjectName("pillTag")
+        legal_status_row.addWidget(self.legal_status_badge)
+        legal_lay.addLayout(legal_status_row)
+
+        legal_btn_row = QHBoxLayout()
+        legal_btn_row.setSpacing(8)
+        self.privacy_btn = QPushButton("Privacy Policy")
+        self.privacy_btn.setObjectName("secondaryButton")
+        self.privacy_btn.setCursor(Qt.PointingHandCursor)
+        self.privacy_btn.clicked.connect(
+            lambda: (trigger_haptic_tick("alignment"), self.review_privacy_requested.emit())
+        )
+        self.terms_btn = QPushButton("Terms && Conditions")
+        self.terms_btn.setObjectName("secondaryButton")
+        self.terms_btn.setCursor(Qt.PointingHandCursor)
+        self.terms_btn.clicked.connect(
+            lambda: (trigger_haptic_tick("alignment"), self.review_terms_requested.emit())
+        )
+        self.replay_intro_btn = QPushButton("Replay Starter Intro")
+        self.replay_intro_btn.setObjectName("secondaryButton")
+        self.replay_intro_btn.setCursor(Qt.PointingHandCursor)
+        self.replay_intro_btn.clicked.connect(
+            lambda: (trigger_haptic_tick("alignment"), self.replay_onboarding_requested.emit())
+        )
+        legal_btn_row.addWidget(self.privacy_btn)
+        legal_btn_row.addWidget(self.terms_btn)
+        legal_btn_row.addStretch()
+        legal_btn_row.addWidget(self.replay_intro_btn)
+        legal_lay.addLayout(legal_btn_row)
+
         initial_triggers = [
             self.combo_convert.currentText(),
             self.combo_tools.currentText(),
@@ -242,6 +283,7 @@ class SettingsPage(QScrollArea):
         self.setWidget(outer)
 
         self._refresh_theme_pills()
+        self.refresh_legal_status()
         self.validate()
 
     def _make_card(self, title: str, parent_lay: QVBoxLayout) -> QFrame:
@@ -300,12 +342,14 @@ class SettingsPage(QScrollArea):
         if self._dark_mode != is_dark:
             self._dark_mode = is_dark
             self._refresh_theme_pills()
+            trigger_haptic_tick("alignment")
             self.theme_changed.emit(is_dark)
 
     def _on_accent_picked(self, accent_key: str) -> None:
         if self._accent_key != accent_key:
             self._accent_key = accent_key
             self._refresh_theme_pills()
+            trigger_haptic_tick("alignment")
             self.accent_changed.emit(accent_key)
 
     def _on_custom_dir_toggled(self, enabled: bool) -> None:
@@ -446,6 +490,20 @@ class SettingsPage(QScrollArea):
             badge.setText("Available" if resolved else meta.install_command)
             badge.setObjectName("badgeSuccess" if resolved else "pillTag")
             self._repolish(badge)
+
+    def refresh_legal_status(self) -> None:
+        accepted = bool(self.qsettings.value("legal_accepted", False, type=bool))
+        version = self.qsettings.value("legal_accepted_version", "", type=str)
+        accepted_at = self.qsettings.value("legal_accepted_at", "", type=str)
+        if accepted and version == LEGAL_VERSION:
+            date_part = accepted_at.split("T")[0] if accepted_at else ""
+            text = f"Accepted v{version}" + (f" · {date_part}" if date_part else "")
+            self.legal_status_badge.setText(text)
+            self.legal_status_badge.setObjectName("badgeSuccess")
+        else:
+            self.legal_status_badge.setText("Review required")
+            self.legal_status_badge.setObjectName("pillTag")
+        self._repolish(self.legal_status_badge)
 
     def _refresh_theme_pills(self) -> None:
         self.light_btn.setProperty("active", not self._dark_mode)

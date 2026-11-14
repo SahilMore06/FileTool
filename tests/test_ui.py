@@ -302,3 +302,168 @@ def test_tray_popover_state_signals_and_drop(qapp, tmp_path: Path):
     pop.dropEvent(ev)
     assert dropped_batches == [[sample.resolve()]]
     pop.close()
+
+
+def test_haptic_patterns_and_sequence(qapp, monkeypatch):
+    """macOS haptic helper maps generic, alignment, and level_change patterns cleanly."""
+    import types
+    from filetool.platform import mac_actions
+
+    recorded = []
+
+    class DummyPerformer:
+        def performFeedbackPattern_performanceTime_(self, pattern, when):
+            recorded.append((pattern, when))
+
+    class DummyFeedbackManager:
+        @classmethod
+        def defaultPerformer(cls):
+            return DummyPerformer()
+
+    fake_appkit = types.SimpleNamespace(
+        NSHapticFeedbackManager=DummyFeedbackManager,
+        NSHapticFeedbackPatternGeneric=0,
+        NSHapticFeedbackPatternAlignment=1,
+        NSHapticFeedbackPatternLevelChange=2,
+        NSHapticFeedbackPerformanceTimeDefault=0,
+        NSHapticFeedbackPerformanceTimeNow=1,
+        NSHapticFeedbackPerformanceTimeDrawCompleted=2,
+    )
+    monkeypatch.setitem(sys.modules, "AppKit", fake_appkit)
+
+    assert mac_actions.trigger_haptic_tick("generic") is True
+    assert mac_actions.trigger_haptic_tick("alignment") is True
+    assert mac_actions.trigger_haptic_tick("level_change") is True
+    assert [(p, w) for p, w in recorded] == [(0, 1), (1, 1), (2, 1)]
+
+    timers = mac_actions.trigger_haptic_sequence([(0, "alignment"), (5, "level_change")])
+    assert len(timers) == 1
+    for t in timers:
+        t.stop()
+
+
+def test_legal_docs_and_first_boot_check(tmp_path: Path):
+    """First-boot guard stays active until current legal version and onboarding are accepted."""
+    from PySide6.QtCore import QSettings
+
+    from filetool.app import needs_first_boot_onboarding
+    from filetool.core.legal import LEGAL_VERSION, render_legal_html
+    from filetool.ui.styles import get_tokens
+
+    qs = QSettings(str(tmp_path / "first_boot.ini"), QSettings.IniFormat)
+    assert needs_first_boot_onboarding(qs) is True
+
+    qs.setValue("onboarding_completed", True)
+    qs.setValue("legal_accepted", True)
+    qs.setValue("legal_accepted_version", "0.0")
+    assert needs_first_boot_onboarding(qs) is True
+
+    qs.setValue("legal_accepted_version", LEGAL_VERSION)
+    assert needs_first_boot_onboarding(qs) is False
+
+    tokens = get_tokens(False, "amber")
+    privacy_html = render_legal_html("privacy", tokens)
+    terms_html = render_legal_html("terms", tokens)
+    assert "zero network requests" in privacy_html.lower()
+    assert "mit license" in terms_html.lower()
+    assert "as is" in terms_html.lower()
+
+
+def test_onboarding_starter_animation_haptic_sandbox_and_consent(qapp, tmp_path: Path, monkeypatch):
+    """Onboarding animates starter emblem, fires haptics in sandbox, requires consent, and saves settings."""
+    from PySide6.QtCore import QPointF, QSettings, Qt
+    from PySide6.QtGui import QMouseEvent
+
+    from filetool.core.legal import LEGAL_VERSION
+    from filetool.platform import mac_actions
+    from filetool.ui import onboarding as ob_mod
+
+    haptic_events = []
+
+    def _capture_haptic(pattern="generic", when="now"):
+        haptic_events.append(pattern)
+        return True
+
+    monkeypatch.setattr(ob_mod, "trigger_haptic_tick", _capture_haptic)
+    monkeypatch.setattr(mac_actions, "trigger_haptic_tick", _capture_haptic)
+
+    qs = QSettings(str(tmp_path / "onboarding.ini"), QSettings.IniFormat)
+    win = ob_mod.OnboardingWindow(dark_mode=False, accent_key="amber", first_boot=True, qsettings=qs)
+
+    # Step 0: starter install choreography + real QPainter render check
+    win.hero_canvas.play_install_sequence(emit_haptics=True)
+    win.hero_canvas._on_install_step(0.5)
+    assert not win.hero_canvas.grab().isNull()
+    win.hero_canvas._on_install_step(1.0)
+    win.hero_canvas._on_install_done()
+    assert not win.hero_canvas.grab().isNull()
+    assert win.hero_canvas._install_t == 1.0
+    assert all(pill.property("ready") is True for pill in win._cap_labels)
+    assert "alignment" in haptic_events
+    assert "level_change" in haptic_events
+
+    # Step 1: haptic wheel sandbox boundary detent + switch + theme swap
+    win.go_to_step(ob_mod.OnboardingWindow.STEP_SANDBOX)
+    win._pick_sandbox_wheel("tools")
+    assert win.wheel_sandbox._wheel_type == "tools"
+
+    prev_haptics = len(haptic_events)
+    cx, cy = win.wheel_sandbox.width() / 2.0, win.wheel_sandbox.height() / 2.0 - 80.0
+    win.wheel_sandbox._update_hover(QPointF(cx, cy))
+    assert win.wheel_sandbox._hovered_idx == 0
+    assert len(haptic_events) > prev_haptics
+
+    click_ev = QMouseEvent(
+        QMouseEvent.Type.MouseButtonPress,
+        QPointF(cx, cy),
+        QPointF(cx, cy),
+        Qt.LeftButton,
+        Qt.LeftButton,
+        Qt.NoModifier,
+    )
+    win.wheel_sandbox.mousePressEvent(click_ev)
+    assert not win.wheel_sandbox.grab().isNull()
+    assert "Tools" in win.sandbox_status.text()
+    win._on_accent_picked("ocean")
+    assert win._accent_key == "ocean"
+
+    # Step 2: legal reader + validation guard + completion
+    win.go_to_step(ob_mod.OnboardingWindow.STEP_LEGAL)
+    assert "Privacy Policy" in win.legal_browser.toPlainText()
+    win.select_legal_doc("terms")
+    assert "MIT" in win.legal_browser.toPlainText()
+
+    # Clicking Accept before checking box refuses and shakes
+    win._on_primary()
+    assert not win.consent_checkbox.grab().isNull()
+    assert win.consent_warning.isHidden() is False
+    assert qs.value("legal_accepted", False, type=bool) is False
+
+    # Accepting saves state and emits payload
+    completed_payloads = []
+    win.onboarding_completed.connect(completed_payloads.append)
+    win.consent_checkbox.setChecked(True)
+    win.complete_onboarding(animate_exit=False)
+
+    assert len(completed_payloads) == 1
+    assert qs.value("onboarding_completed", False, type=bool) is True
+    assert qs.value("legal_accepted", False, type=bool) is True
+    assert qs.value("legal_accepted_version", "", type=str) == LEGAL_VERSION
+    assert qs.value("accent_preset", "", type=str) == "ocean"
+    win.close()
+
+
+def test_settings_legal_actions_and_main_window_replay(qapp, tmp_path: Path):
+    """MainWindow Settings replay buttons open the matching onboarding stage cleanly."""
+    from PySide6.QtCore import QSettings
+
+    window = MainWindow()
+    iso_qs = QSettings(str(tmp_path / "replay.ini"), QSettings.IniFormat)
+    try:
+        assert window.settings_page.legal_status_badge.text()
+        ob = window.open_onboarding(first_boot=False, initial_step=2, initial_legal_doc="terms", qsettings=iso_qs)
+        assert ob._current_step == 2
+        assert ob._legal_doc == "terms"
+        ob.close()
+    finally:
+        window.close()

@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from filetool.core.registry import registry
 from filetool.core.runner import ConversionJob, JobRunner, JobStatus
+from filetool.platform.mac_actions import trigger_haptic_tick
 from filetool.ui.components import (
     LogoWidget,
     ThemeToggle,
@@ -34,6 +35,7 @@ from filetool.ui.components import (
 from filetool.ui.dropzone import DropZone
 from filetool.ui.history_panel import HistoryPanel
 from filetool.ui.job_list import JobListWidget
+from filetool.ui.onboarding import OnboardingWindow
 from filetool.ui.options_panel import OptionsPanel
 from filetool.ui.settings_page import SettingsPage
 from filetool.ui.styles import ACCENT_PRESETS, get_stylesheet
@@ -72,6 +74,7 @@ class MainWindow(QMainWindow):
         self.delete_original: bool = self.qsettings.value("delete_original", False, type=bool)
 
         self.runner = JobRunner()
+        self._onboarding_win: Optional[OnboardingWindow] = None
 
         self._init_ui()
         self._connect_signals()
@@ -135,7 +138,7 @@ class MainWindow(QMainWindow):
             btn.setObjectName("tabButton")
             btn.setCursor(Qt.PointingHandCursor)
             btn.setProperty("active", key == "queue")
-            btn.clicked.connect(lambda _checked=False, k=key: self._navigate(k))
+            btn.clicked.connect(lambda _checked=False, k=key: (trigger_haptic_tick("alignment"), self._navigate(k)))
             tab_layout.addWidget(btn)
             self._tab_buttons[key] = btn
 
@@ -234,6 +237,13 @@ class MainWindow(QMainWindow):
         self.settings_page.theme_changed.connect(self._on_theme_toggled)
         self.settings_page.accent_changed.connect(self._on_accent_changed)
         self.settings_page.settings_changed.connect(self._on_settings_saved)
+        self.settings_page.replay_onboarding_requested.connect(lambda: self.open_onboarding(first_boot=False, initial_step=0))
+        self.settings_page.review_privacy_requested.connect(
+            lambda: self.open_onboarding(first_boot=False, initial_step=2, initial_legal_doc="privacy")
+        )
+        self.settings_page.review_terms_requested.connect(
+            lambda: self.open_onboarding(first_boot=False, initial_step=2, initial_legal_doc="terms")
+        )
 
         self.runner.signals.started.connect(lambda _jid: self._refresh_queue_indicators())
         self.runner.signals.completed.connect(self._on_job_completed)
@@ -404,6 +414,7 @@ class MainWindow(QMainWindow):
                 self.logo.trigger_done_flash()
                 self._set_brand_pill("Done", "done")
                 self._done_reset_timer.start(1400)
+                trigger_haptic_tick("level_change")
             else:
                 self.logo.set_active_progress(False, None)
                 self._set_brand_pill("Offline", "idle")
@@ -455,6 +466,55 @@ class MainWindow(QMainWindow):
         self._navigate("settings")
         self.settings_page.refresh_dependency_status(run_version_probe=True)
         self.settings_page.ensureWidgetVisible(self.settings_page.rescan_btn)
+
+    def open_onboarding(
+        self,
+        first_boot: bool = False,
+        initial_step: int = 0,
+        initial_legal_doc: str = "privacy",
+        qsettings: Optional[QSettings] = None,
+    ) -> OnboardingWindow:
+        """Open the animated starter onboarding and Terms & Privacy window."""
+        if self._onboarding_win is not None:
+            self._onboarding_win.close()
+
+        win = OnboardingWindow(
+            dark_mode=self.dark_mode,
+            accent_key=self.accent_key,
+            first_boot=first_boot,
+            qsettings=qsettings or self.qsettings,
+            initial_step=initial_step,
+            initial_legal_doc=initial_legal_doc,
+        )
+        win.theme_preview_changed.connect(self._on_onboarding_theme_preview)
+        win.onboarding_completed.connect(self._on_onboarding_completed)
+        self._onboarding_win = win
+        win.start_intro(emit_haptics=True)
+        return win
+
+    def _on_onboarding_theme_preview(self, is_dark: bool, accent_key: str) -> None:
+        self._on_theme_toggled(is_dark)
+        self._on_accent_changed(accent_key)
+
+    def _on_onboarding_completed(self, result: dict) -> None:
+        self._on_theme_toggled(bool(result.get("dark_mode", self.dark_mode)))
+        self._on_accent_changed(str(result.get("accent_key", self.accent_key)))
+        if "wheel_enabled" in result:
+            self.settings_page.sw_wheel.setChecked(bool(result["wheel_enabled"]))
+        if "accessory_mode" in result:
+            self.settings_page.sw_accessory.setChecked(bool(result["accessory_mode"]))
+        self.settings_page.refresh_legal_status()
+        self.settings_page._persist_and_emit()
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        self.logo.spin_once(180.0, 480)
+
+    def closeEvent(self, event) -> None:
+        if self._onboarding_win is not None:
+            self._onboarding_win.close()
+            self._onboarding_win = None
+        super().closeEvent(event)
 
     def _show_about(self) -> None:
         QMessageBox.about(

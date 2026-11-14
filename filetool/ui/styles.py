@@ -717,7 +717,7 @@ QPushButton#filterPill {{
     background-color: transparent;
     color: {t['text_secondary']};
     border: 1px solid transparent;
-    border-radius: 14px;
+    border-radius: 8px;
     padding: 4px 12px;
     font-size: 12px;
     font-weight: 500;
@@ -735,12 +735,123 @@ QPushButton#filterPill[active="true"] {{
     font-weight: 600;
 }}
 
+QWidget#onboardingHeader {{
+    background-color: {t['bg_surface']};
+    border-bottom: 1px solid {t['border']};
+    border-top-left-radius: 17px;
+    border-top-right-radius: 17px;
+}}
+
+QWidget#onboardingFooter {{
+    background-color: {t['bg_surface']};
+    border-top: 1px solid {t['border']};
+    border-bottom-left-radius: 17px;
+    border-bottom-right-radius: 17px;
+}}
+
+QLabel#onboardingHeadline {{
+    color: {t['text_primary']};
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+}}
+
+QLabel#onboardingLead {{
+    color: {t['text_secondary']};
+    font-size: 13px;
+}}
+
+QLabel#onboardingSectionTitle {{
+    color: {t['text_primary']};
+    font-size: 13px;
+    font-weight: 700;
+}}
+
+QPushButton#onboardingStepPill {{
+    background-color: transparent;
+    color: {t['text_secondary']};
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 4px 11px;
+    font-size: 11.5px;
+    font-weight: 600;
+}}
+
+QPushButton#onboardingStepPill:hover {{
+    background-color: {t['bg_surface_hover']};
+    color: {t['text_primary']};
+}}
+
+QPushButton#onboardingStepPill[active="true"] {{
+    background-color: {t['accent_subtle']};
+    color: {t['accent_text']};
+    border: 1px solid {t['accent']};
+}}
+
+QPushButton#onboardingStepPill[done="true"] {{
+    color: {t['success']};
+}}
+
+QLabel#onboardingCapabilityPill {{
+    background-color: {t['bg_surface2']};
+    color: {t['text_secondary']};
+    border: 1px solid {t['border']};
+    border-radius: 8px;
+    padding: 4px 9px;
+    font-size: 11.5px;
+    font-weight: 600;
+}}
+
+QLabel#onboardingCapabilityPill[ready="true"] {{
+    background-color: {t['success_subtle']};
+    color: {t['success']};
+    border: 1px solid {t['success']};
+}}
+
+QTextBrowser#onboardingLegalView {{
+    background-color: {t['bg_input']};
+    color: {t['text_primary']};
+    border: 1px solid {t['border']};
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 12.5px;
+}}
+
+QPushButton#subtleLinkButton {{
+    background-color: transparent;
+    border: none;
+    color: {t['accent_text']};
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 6px;
+}}
+
+QPushButton#subtleLinkButton:hover {{
+    background-color: {t['accent_subtle']};
+}}
+
+QPushButton#dangerSubtleButton {{
+    background-color: transparent;
+    border: 1px solid {t['border']};
+    color: {t['error']};
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 6px 12px;
+}}
+
+QPushButton#dangerSubtleButton:hover {{
+    background-color: {t['error_subtle']};
+    border-color: {t['error']};
+}}
+
 QComboBox[invalid="true"], QLineEdit[invalid="true"] {{
     border: 1.5px solid {t['error']};
     background-color: {t['error_subtle']};
 }}
 
-QPushButton:focus-visible, QComboBox:focus-visible {{
+QPushButton:focus-visible, QComboBox:focus-visible, QTextBrowser:focus-visible {{
     outline: none;
     border: 1.5px solid {t['border_focus']};
 }}
