@@ -4,12 +4,17 @@ All notable changes to Fluxora are documented in this file.
 
 ## [1.1.1] - 2026-11-14
 
+### Added
+- Multi-arch headless CLI container image (`ghcr.io/sahilmore06/fluxora` for `linux/amd64` and `linux/arm64`) published to GitHub Packages via `Dockerfile` and `.github/workflows/packages.yml`.
+- Native macOS Drag-to-Applications `.dmg` installer (`dmgbuild`) featuring an `Applications` folder shortcut (`/Applications` symlink) and a custom HiDPI (`1x`/`2x`) installer background.
+
 ### Changed
 - Rebranded application identity, repository, macOS `.app`/`.dmg` packaging, and launch showcase to **Fluxora – Intelligent File Conversion & Productivity Suite** (`github.com/SahilMore06/Fluxora`).
 - Upgraded GitHub README showcase to crisp native `1920x1080` inline Animated WebP (removing downloadable `.mp4`/`.gif` showcase links from the repository).
 
 ### Fixed
 - Stabilized `test_onboarding_starter_animation_haptic_sandbox_and_consent` on macOS CI runners with Accessibility Reduce Motion active.
+- Corrected `MacDragMonitor` idle polling documentation to `20 Hz` (`INTERVAL_IDLE_MS = 50`).
 
 ## [1.1.0] - 2026-11-14
 

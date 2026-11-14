@@ -159,7 +159,8 @@ from filetool.ui.components import create_brand_pixmap
 app = QApplication.instance() or QApplication([])
 
 def render_dmg_bg(scale: int, out_path: Path) -> None:
-    W, H = 660 * scale, 400 * scale
+    CW, CH = 900, 600
+    W, H = CW * scale, CH * scale
     img = QImage(W, H, QImage.Format_ARGB32_Premultiplied)
     p = QPainter(img)
     p.setRenderHint(QPainter.Antialiasing)
@@ -167,68 +168,79 @@ def render_dmg_bg(scale: int, out_path: Path) -> None:
     p.setRenderHint(QPainter.SmoothPixmapTransform)
     p.scale(scale, scale)
 
-    p.fillRect(QRectF(0, 0, 660, 400), QColor("#171819"))
+    p.fillRect(QRectF(0, 0, CW, CH), QColor("#171819"))
 
     p.save()
     p.setPen(QPen(QColor(255, 255, 255, 7), 1.0))
-    for x in range(66, 660, 66):
-        p.drawLine(QPointF(x, 0), QPointF(x, 400))
-    for y in range(66, 400, 66):
-        p.drawLine(QPointF(0, y), QPointF(660, y))
+    for x in range(66, CW, 66):
+        p.drawLine(QPointF(x, 0), QPointF(x, CH))
+    for y in range(66, CH, 66):
+        p.drawLine(QPointF(0, y), QPointF(CW, y))
     p.restore()
 
-    glow = QRadialGradient(330, 190, 250)
+    glow = QRadialGradient(330, 168, 250)
     glow.setColorAt(0.0, QColor(242, 138, 50, 42))
     glow.setColorAt(0.6, QColor(242, 138, 50, 14))
     glow.setColorAt(1.0, QColor(242, 138, 50, 0))
-    p.fillRect(QRectF(0, 0, 660, 400), glow)
+    p.fillRect(QRectF(0, 0, CW, CH), glow)
 
     for cx in (180, 480):
-        zone = QRectF(cx - 72, 190 - 76, 144, 152)
+        zone = QRectF(cx - 78, 94, 156, 158)
         zp = QPainterPath()
         zp.addRoundedRect(zone, 24, 24)
-        p.fillPath(zp, QColor(255, 255, 255, 6))
+        p.fillPath(zp, QColor(255, 255, 255, 8))
         pen_style = Qt.DashLine if cx == 480 else Qt.SolidLine
-        p.setPen(QPen(QColor(242, 138, 50, 55 if cx == 480 else 32), 1.2, pen_style))
+        p.setPen(QPen(QColor(242, 138, 50, 65 if cx == 480 else 38), 1.3, pen_style))
         p.drawPath(zp)
 
+        # High-contrast warm Tangerine/Amber badge pill behind Finder's black icon label
+        lbl_rect = QRectF(cx - 58, 212, 116, 26)
+        lp = QPainterPath()
+        lp.addRoundedRect(lbl_rect, 13, 13)
+        lgrad = QLinearGradient(lbl_rect.topLeft(), lbl_rect.bottomLeft())
+        lgrad.setColorAt(0.0, QColor("#F5A352"))
+        lgrad.setColorAt(1.0, QColor("#E88428"))
+        p.fillPath(lp, lgrad)
+        p.setPen(QPen(QColor(255, 232, 204, 160), 1.0))
+        p.drawPath(lp)
+
     p.save()
-    grad = QLinearGradient(280, 184, 380, 184)
-    grad.setColorAt(0.0, QColor(242, 138, 50, 90))
+    grad = QLinearGradient(280, 162, 380, 162)
+    grad.setColorAt(0.0, QColor(242, 138, 50, 95))
     grad.setColorAt(1.0, QColor("#F28A32"))
-    p.setPen(QPen(grad, 3.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-    p.drawLine(QPointF(282, 184), QPointF(372, 184))
+    p.setPen(QPen(grad, 3.4, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+    p.drawLine(QPointF(282, 162), QPointF(372, 162))
 
     head = QPolygonF([
+        QPointF(364, 151),
+        QPointF(378, 162),
         QPointF(364, 173),
-        QPointF(378, 184),
-        QPointF(364, 195),
     ])
-    p.setPen(QPen(QColor("#F28A32"), 3.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+    p.setPen(QPen(QColor("#F28A32"), 3.4, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
     p.drawPolyline(head)
     p.restore()
 
     pix = create_brand_pixmap(size=24, accent_color="#F28A32", dpr=float(scale * 2))
-    p.drawPixmap(QRectF(252, 34, 24, 24), pix, QRectF(pix.rect()))
+    p.drawPixmap(QRectF(252, 32, 24, 24), pix, QRectF(pix.rect()))
     f_title = QFont(".AppleSystemUIFont")
     f_title.setPixelSize(16)
     f_title.setWeight(QFont.Weight.Bold)
     p.setFont(f_title)
     p.setPen(QColor("#F1EFEA"))
-    p.drawText(QRectF(284, 34, 160, 24), Qt.AlignVCenter | Qt.AlignLeft, "Fluxora Installer")
+    p.drawText(QRectF(284, 32, 160, 24), Qt.AlignVCenter | Qt.AlignLeft, "Fluxora Installer")
 
-    pill = QRectF(195, 326, 270, 32)
+    pill = QRectF(190, 276, 280, 34)
     pp = QPainterPath()
-    pp.addRoundedRect(pill, 16, 16)
-    p.fillPath(pp, QColor(32, 33, 35, 220))
-    p.setPen(QPen(QColor(242, 138, 50, 90), 1.0))
+    pp.addRoundedRect(pill, 17, 17)
+    p.fillPath(pp, QColor(34, 35, 38, 240))
+    p.setPen(QPen(QColor(242, 138, 50, 120), 1.2))
     p.drawPath(pp)
 
     f_sub = QFont(".AppleSystemUIFont")
     f_sub.setPixelSize(13)
     f_sub.setWeight(QFont.Weight.DemiBold)
     p.setFont(f_sub)
-    p.setPen(QColor("#B4B1A9"))
+    p.setPen(QColor("#F1EFEA"))
     p.drawText(pill, Qt.AlignCenter, "Drag Fluxora into Applications")
 
     p.end()
@@ -252,12 +264,12 @@ with tempfile.TemporaryDirectory() as td:
         "files": ["Fluxora.app"],
         "symlinks": {"Applications": "/Applications"},
         "icon_locations": {
-            "Fluxora.app": (180, 184),
-            "Applications": (480, 184),
+            "Fluxora.app": (180, 162),
+            "Applications": (480, 162),
         },
         "background": str(bg1),
-        "window_rect": ((200, 120), (660, 428)),
-        "icon_size": 96,
+        "window_rect": ((200, 120), (660, 468)),
+        "icon_size": 92,
         "text_size": 13,
         "show_status_bar": False,
         "show_tab_view": False,

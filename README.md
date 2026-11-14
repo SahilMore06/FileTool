@@ -41,13 +41,13 @@ Download the latest packaged application bundle directly from [GitHub Releases](
 
 | Package | Direct Download | Target | Notes |
 | :--- | :--- | :--- | :--- |
-| **macOS Disk Image** | [Download `Fluxora.dmg`](https://github.com/SahilMore06/Fluxora/releases/latest/download/Fluxora.dmg) | macOS 13+ | Drag `Fluxora.app` into `/Applications` |
+| **macOS Disk Image** | [Download `Fluxora.dmg`](https://github.com/SahilMore06/Fluxora/releases/latest/download/Fluxora.dmg) | macOS 13+ | Open `Fluxora.dmg` and drag `Fluxora` into the `Applications` folder shortcut |
 | **Standalone ZIP** | [Download `Fluxora.app.zip`](https://github.com/SahilMore06/Fluxora/releases/latest/download/Fluxora.app.zip) | macOS 13+ | Extract and move `Fluxora.app` into `/Applications` |
-| **Checksums** | [View `SHA256SUMS.txt` & Release Notes](https://github.com/SahilMore06/Fluxora/releases/latest) | All builds | Verify downloads via `shasum -a 256` |
+| **Checksums** | [View `SHA256SUMS.txt` & Release Notes](https://github.com/SahilMore06/Fluxora/releases/latest) | All builds | Verify downloads via `shasum -a 256 -c SHA256SUMS.txt` |
 
 #### First-Launch Setup on macOS
 
-1. Move `Fluxora.app` into `/Applications`.
+1. Open `Fluxora.dmg` and drag `Fluxora.app` onto the `Applications` folder shortcut (or move `Fluxora.app` into `/Applications`).
 2. Because open-source builds use ad-hoc code signing rather than paid Apple Developer notarization, macOS Gatekeeper prompts on first launch. Open it by right-clicking `Fluxora.app` and selecting **Open**, or run:
 
    ```bash
