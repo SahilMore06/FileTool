@@ -8,13 +8,23 @@ Offline batch file conversion, compression, and cursor radial drag utilities for
 [![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E87410)](LICENSE)
 
-[Download](#download-and-installation) · [Drag Wheel](#finder-drag-wheel) · [Desktop App](#desktop-window-and-onboarding) · [Quick Tools](#quick-tools-and-native-actions) · [Supported Formats](#supported-formats-and-backends) · [CLI](#command-line-interface) · [Architecture](#architecture-and-project-layout)
+[Why FileTool](#why-filetool) · [Download](#download-and-installation) · [Drag Wheel](#finder-drag-wheel) · [Desktop App](#desktop-window-and-onboarding) · [Quick Tools](#quick-tools-and-native-actions) · [Supported Formats](#supported-formats-and-backends) · [CLI](#command-line-interface) · [Architecture](#architecture-and-project-layout)
 
 ---
 
 FileTool pairs a PySide6 batch desktop window and command-line tool with a non-activating radial overlay that opens beneath your cursor while dragging files in Finder. Conversions and edits execute locally on your Mac through Pillow, FFmpeg, ImageMagick, Ghostscript, Pandoc, LibreOffice, and 7-Zip with zero network access, telemetry, or Accessibility permission prompts ([Privacy Policy](PRIVACY.md)).
 
 ![FileTool radial drag wheels in light and dark mode](docs/assets/drag_wheel_showcase.png)
+
+## Why FileTool
+
+| Common Mac File Friction | How FileTool Handles It |
+| :--- | :--- |
+| **Cloud Upload Privacy Risks** | Contracts, receipts, media, and documents process locally on your Mac with zero network requests or accounts. |
+| **Daily Caps, Wait Queues & Watermarks** | Unlimited batch conversions and tools offline under the MIT license. |
+| **Losing Finder Context** | Summon a cursor-centered radial wheel while dragging any file (`Shift`, `Command`, `Control`) instead of opening browser tabs or hunting through `~/Downloads`. |
+| **Accessibility Permission Prompts** | Uses passive Quartz modifier taps (`CGEventTap`) and `NSDragPboard` change counts without global Accessibility permissions or keystroke logging. |
+| **Destructive Overwrites** | Source files stay untouched and existing targets append numeric increments (`report (1).pdf`) unless overwrite is enabled in Settings. |
 
 ## Download and Installation
 
@@ -236,7 +246,9 @@ Run headless without a Cocoa display session:
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest -v
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [PRIVACY.md](PRIVACY.md), and [TERMS.md](TERMS.md) for development guidelines and policy terms.
+See [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md), [SECURITY.md](SECURITY.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), [PRIVACY.md](PRIVACY.md), and [TERMS.md](TERMS.md) for contributor workflows, release notes, security practices, and policy terms.
+
+If FileTool saves you time on macOS, starring the repository or opening bug reports and format requests in [GitHub Issues](https://github.com/SahilMore06/FileTool/issues) helps prioritize future converters and releases.
 
 ## License
 

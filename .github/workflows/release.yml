@@ -42,17 +42,28 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
-          name: FileTool ${{ inputs.tag || github.ref_name }}
+          name: FileTool ${{ inputs.tag || github.ref_name }} - Native macOS Offline File Utility
           generate_release_notes: true
           body: |
             Offline batch file conversion, compression, and cursor radial drag utilities for macOS.
 
-            ### Installation
-            1. Download `FileTool.dmg` (recommended) or `FileTool.app.zip`.
-            2. Drag `FileTool.app` into `/Applications`.
-            3. On first launch, right-click (Control-click) `FileTool.app` and choose **Open** (or run `xattr -cr /Applications/FileTool.app`).
+            ### Why FileTool
 
-            Verify integrity with `shasum -a 256 -c SHA256SUMS.txt`.
+            - **Local Execution**: Converts documents, images, audio, video, spreadsheets, and archives on your Mac with zero cloud uploads, accounts, file caps, or watermarks.
+            - **Zero Accessibility Permissions**: Uses passive Quartz modifier detection and `NSDragPboard` polling while keeping Finder drag focus intact.
+            - **Safe Defaults**: Preserves original files and appends numeric increments (`name (1).ext`) unless overwrite is enabled in Settings.
+
+            ### Installation for macOS
+
+            1. Download `FileTool.dmg` (recommended) or `FileTool.app.zip` below.
+            2. Drag `FileTool.app` into `/Applications`.
+            3. On first launch, right-click (Control-click) `FileTool.app` and select **Open**, or clear quarantine in Terminal:
+
+               ```bash
+               xattr -cr /Applications/FileTool.app
+               ```
+
+            Verify package integrity with `shasum -a 256 -c SHA256SUMS.txt`.
           files: |
             dist/FileTool.dmg
             dist/FileTool.app.zip
