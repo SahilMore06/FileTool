@@ -45,6 +45,10 @@ Download the latest packaged application bundle directly from [GitHub Releases](
 | **Standalone ZIP** | [Download `Fluxora.app.zip`](https://github.com/SahilMore06/Fluxora/releases/latest/download/Fluxora.app.zip) | macOS 13+ | Extract and move `Fluxora.app` into `/Applications` |
 | **Checksums** | [View `SHA256SUMS.txt` & Release Notes](https://github.com/SahilMore06/Fluxora/releases/latest) | All builds | Verify downloads via `shasum -a 256 -c SHA256SUMS.txt` |
 
+<div align="center">
+  <img src="docs/assets/dmg_installer_showcase.png" alt="Fluxora macOS Drag-to-Applications DMG Installer" width="680" />
+</div>
+
 #### First-Launch Setup on macOS
 
 1. Open `Fluxora.dmg` and drag `Fluxora.app` onto the `Applications` folder shortcut (or move `Fluxora.app` into `/Applications`).

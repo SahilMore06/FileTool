@@ -55,8 +55,12 @@ jobs:
 
             ### Installation for macOS
 
+            <div align="center">
+              <img src="https://raw.githubusercontent.com/SahilMore06/Fluxora/master/docs/assets/dmg_installer_showcase.png" alt="Fluxora macOS Drag-to-Applications DMG Installer" width="640" />
+            </div>
+
             1. Download `Fluxora.dmg` (recommended) or `Fluxora.app.zip` below.
-            2. Drag `Fluxora.app` into `/Applications`.
+            2. Open `Fluxora.dmg` and drag `Fluxora` into the `Applications` folder shortcut.
             3. On first launch, right-click (Control-click) `Fluxora.app` and select **Open**, or clear quarantine in Terminal:
 
                ```bash
