@@ -22,9 +22,9 @@ jobs:
 
       - name: Install macOS CLI dependencies via Homebrew
         run: |
-          brew install ffmpeg imagemagick pandoc poppler ghostscript sevenzip || true
-          brew install --cask libreoffice --no-quarantine || true
-          ls -la /Applications/LibreOffice.app/Contents/MacOS/soffice || true
+          brew install ffmpeg imagemagick pandoc poppler ghostscript sevenzip
+          brew install --cask libreoffice
+          ls -la /Applications/LibreOffice.app/Contents/MacOS/soffice
 
       - name: Install Python dependencies
         run: |
