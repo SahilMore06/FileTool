@@ -46,7 +46,7 @@ class DropZone(QFrame):
         layout.addWidget(self.title_label)
 
         self.sub_label = QLabel(
-            "Offline on your Mac · Hold Shift, Cmd, or Ctrl while dragging in Finder for the quick wheel"
+            "Offline on your Mac · Tap Shift, Cmd, or Ctrl while dragging in Finder — release to keep wheel open"
         )
         self.sub_label.setObjectName("dropSubtitle")
         self.sub_label.setAlignment(Qt.AlignCenter)
@@ -75,7 +75,12 @@ class DropZone(QFrame):
         if files:
             self.files_dropped.emit([Path(f) for f in files])
 
+    def set_accent_color(self, hex_color: str) -> None:
+        self.icon_label.set_color(QColor(hex_color))
+
     def _set_hovered(self, hovered: bool) -> None:
+        if bool(self.property("hovered")) == hovered:
+            return
         self.setProperty("hovered", hovered)
         self.style().unpolish(self)
         self.style().polish(self)

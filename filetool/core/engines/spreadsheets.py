@@ -7,17 +7,14 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict
 
-import pandas as pd
-
 from filetool.core.deps import resolver
 from filetool.core.registry import Converter, registry
-from filetool.core.utils import run_command, safe_temp_dir
+from filetool.core.utils import build_soffice_convert_cmd, run_command, safe_temp_dir
 
 logger = logging.getLogger("filetool.engines.spreadsheets")
 
 # Formats
 SPREADSHEET_INPUT_FORMATS = ("xlsx", "xls", "ods", "csv", "tsv")
-SPREADSHEET_OUTPUT_FORMATS = ("xlsx", "ods", "csv", "tsv", "pdf")
 
 
 def convert_spreadsheet(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
@@ -31,7 +28,9 @@ def convert_spreadsheet(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
     if out_ext == "pdf":
         soffice = resolver.get_tool_path("soffice")
         with safe_temp_dir(prefix="filetool_sheet_pdf_") as tmp_dir:
-            cmd = [soffice, "--headless", "--convert-to", "pdf", "--outdir", str(tmp_dir), str(src)]
+            cmd = build_soffice_convert_cmd(
+                soffice, "pdf", tmp_dir, src, profile_dir=tmp_dir / "lo_profile"
+            )
             res = run_command(cmd, timeout=90.0)
             expected_pdf = tmp_dir / f"{src.stem}.pdf"
             if not expected_pdf.exists():
@@ -42,13 +41,17 @@ def convert_spreadsheet(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
     if out_ext == "ods":
         soffice = resolver.get_tool_path("soffice")
         with safe_temp_dir(prefix="filetool_sheet_ods_") as tmp_dir:
-            cmd = [soffice, "--headless", "--convert-to", "ods", "--outdir", str(tmp_dir), str(src)]
+            cmd = build_soffice_convert_cmd(
+                soffice, "ods", tmp_dir, src, profile_dir=tmp_dir / "lo_profile"
+            )
             res = run_command(cmd, timeout=90.0)
             expected_ods = tmp_dir / f"{src.stem}.ods"
             if not expected_ods.exists():
                 raise RuntimeError(f"Spreadsheet to ODS conversion failed: {res.stderr_tail()}")
             shutil.copy2(expected_ods, dest)
         return dest
+
+    import pandas as pd
 
     if in_ext == "csv":
         df = pd.read_csv(src)
@@ -60,7 +63,9 @@ def convert_spreadsheet(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
         # LibreOffice normalizes legacy/ODS workbooks to CSV before loading into pandas
         soffice = resolver.get_tool_path("soffice")
         with safe_temp_dir(prefix="filetool_sheet_read_") as tmp_dir:
-            cmd = [soffice, "--headless", "--convert-to", "csv", "--outdir", str(tmp_dir), str(src)]
+            cmd = build_soffice_convert_cmd(
+                soffice, "csv", tmp_dir, src, profile_dir=tmp_dir / "lo_profile"
+            )
             res = run_command(cmd, timeout=90.0)
             expected_csv = tmp_dir / f"{src.stem}.csv"
             if not expected_csv.exists():

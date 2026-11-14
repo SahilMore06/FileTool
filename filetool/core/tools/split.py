@@ -6,8 +6,6 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import pypdf
-
 from filetool.core.deps import resolver
 from filetool.core.utils import run_command
 
@@ -25,15 +23,19 @@ def split_pdf_by_pages(
     Otherwise, extracts each individual page into 'stem_page_1.pdf', 'stem_page_2.pdf', etc.
     """
     dest_dir.mkdir(parents=True, exist_ok=True)
+    import pypdf
+
     reader = pypdf.PdfReader(str(src))
     total_pages = len(reader.pages)
     output_files: List[Path] = []
 
     if ranges:
         for idx, (start_p, end_p) in enumerate(ranges, start=1):
-            writer = pypdf.PdfWriter()
             s = max(0, start_p - 1)
             e = min(total_pages, end_p)
+            if s >= e:
+                continue
+            writer = pypdf.PdfWriter()
             for p in range(s, e):
                 writer.add_page(reader.pages[p])
 
@@ -79,5 +81,9 @@ def split_video_by_time(
     if not res.success:
         raise RuntimeError(f"Video splitting failed: {res.stderr_tail()}")
 
-    segments = sorted(dest_dir.glob(f"{src.stem}_part_*{src.suffix}"))
+    prefix = f"{src.stem}_part_"
+    segments = sorted(
+        p for p in dest_dir.iterdir()
+        if p.is_file() and p.name.startswith(prefix) and p.suffix == src.suffix
+    )
     return segments

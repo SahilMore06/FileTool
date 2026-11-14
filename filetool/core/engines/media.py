@@ -130,7 +130,9 @@ def convert_video(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
         return dest
 
     if out_ext == "gif":
-        scale_str = "scale=-2:480:flags=lanczos," if resolution != "original" else "scale=flags=lanczos,"
+        gif_heights = {"1080p": 1080, "720p": 720, "480p": 480}
+        target_h = gif_heights.get(resolution)
+        scale_str = f"scale=-2:{target_h}:flags=lanczos," if target_h else "scale=flags=lanczos,"
         filter_str = f"fps=15,{scale_str}split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse"
         cmd = [ffmpeg, "-y", "-i", str(src), "-vf", filter_str, str(dest)]
         res = run_command(cmd)

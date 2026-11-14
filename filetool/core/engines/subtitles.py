@@ -12,8 +12,6 @@ from filetool.core.registry import Converter, registry
 
 logger = logging.getLogger("filetool.engines.subtitles")
 
-SUBTITLE_FORMATS = ("srt", "vtt", "txt")
-
 
 @dataclass
 class SubtitleCue:

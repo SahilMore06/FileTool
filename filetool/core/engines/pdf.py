@@ -8,15 +8,14 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict
 
-import pandas as pd
-from pdf2docx import Converter as Pdf2DocxConverter
-from PIL import Image
-from pptx import Presentation
-from pptx.util import Inches
-
 from filetool.core.deps import resolver
 from filetool.core.registry import Converter, OptionDefinition, registry
-from filetool.core.utils import run_command, safe_temp_dir
+from filetool.core.utils import (
+    get_unique_output_path,
+    natural_sort_key,
+    run_command,
+    safe_temp_dir,
+)
 
 logger = logging.getLogger("filetool.engines.pdf")
 
@@ -35,6 +34,8 @@ PDF_OPTIONS = {
 
 def convert_pdf_to_docx(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
     """Convert PDF to DOCX using pdf2docx."""
+    from pdf2docx import Converter as Pdf2DocxConverter
+
     cv = Pdf2DocxConverter(str(src))
     try:
         cv.convert(str(dest))
@@ -61,9 +62,13 @@ def convert_pdf_to_pptx(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
         if not res.success:
             raise RuntimeError(f"Rendering PDF pages for PPTX failed: {res.stderr_tail()}")
 
-        page_images = sorted(tmp_dir.glob("page-*.png"))
+        page_images = sorted(tmp_dir.glob("page-*.png"), key=natural_sort_key)
         if not page_images:
             raise RuntimeError("No rendered page images found for PPTX generation")
+
+        from PIL import Image
+        from pptx import Presentation
+        from pptx.util import Inches
 
         prs = Presentation()
         # Use dimensions from the first page image
@@ -127,6 +132,8 @@ def convert_pdf_to_xlsx(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
         max_cols = max(len(r) for r in rows)
         padded_rows = [r + [""] * (max_cols - len(r)) for r in rows]
 
+        import pandas as pd
+
         df = pd.DataFrame(padded_rows)
         df.to_excel(dest, index=False, header=False, engine="openpyxl")
 
@@ -150,7 +157,7 @@ def convert_pdf_to_images(src: Path, dest: Path, options: Dict[str, Any]) -> Pat
         if not res.success:
             raise RuntimeError(f"pdftoppm rendering failed: {res.stderr_tail()}")
 
-        rendered_pages = sorted(tmp_dir.glob("page-*.*"))
+        rendered_pages = sorted(tmp_dir.glob("page-*.*"), key=natural_sort_key)
         if not rendered_pages:
             raise RuntimeError("No rendered page images produced from PDF")
 
@@ -160,7 +167,7 @@ def convert_pdf_to_images(src: Path, dest: Path, options: Dict[str, Any]) -> Pat
             dest_dir = dest.parent
             dest_stem = dest.stem
             for idx, img_path in enumerate(rendered_pages[1:], start=2):
-                sibling_dest = dest_dir / f"{dest_stem} (Page {idx}).{out_ext}"
+                sibling_dest = get_unique_output_path(dest_dir / f"{dest_stem} (Page {idx}).{out_ext}")
                 shutil.copy2(img_path, sibling_dest)
 
     return dest

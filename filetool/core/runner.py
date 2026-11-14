@@ -12,7 +12,10 @@ from typing import Any, Dict, Optional
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
 
 from filetool.core.registry import registry
-from filetool.core.utils import get_unique_output_path
+from filetool.core.utils import (
+    release_reserved_output_path,
+    reserve_unique_output_path,
+)
 
 logger = logging.getLogger("filetool.runner")
 
@@ -120,8 +123,10 @@ class ConversionTask(QRunnable):
         out_dir.mkdir(parents=True, exist_ok=True)
         dest_candidate = out_dir / f"{stem}.{out_ext}"
 
+        reserved_path: Optional[Path] = None
         if not self.job.overwrite:
-            dest_path = get_unique_output_path(dest_candidate)
+            dest_path = reserve_unique_output_path(dest_candidate)
+            reserved_path = dest_path
         else:
             dest_path = dest_candidate
 
@@ -142,8 +147,13 @@ class ConversionTask(QRunnable):
                 self.signals.cancelled.emit(self.job.id)
                 return
 
-            # Optionally delete original
-            if self.job.delete_original and src.exists() and result_path.exists():
+            # Optionally delete original (never delete if output resolved to the same path)
+            if (
+                self.job.delete_original
+                and src.exists()
+                and result_path.exists()
+                and src.resolve() != result_path.resolve()
+            ):
                 try:
                     src.unlink()
                 except Exception as del_err:
@@ -162,6 +172,8 @@ class ConversionTask(QRunnable):
             self.job.error_message = err_msg
             self.job.stderr_tail = stderr_tail
             self.signals.failed.emit(self.job.id, err_msg, stderr_tail)
+        finally:
+            release_reserved_output_path(reserved_path)
 
 
 class JobRunner(QObject):
@@ -173,11 +185,13 @@ class JobRunner(QObject):
 
     def __init__(self, max_threads: int = 4):
         super().__init__()
-        self.thread_pool = QThreadPool.globalInstance()
+        # Dedicated pool isolates heavy ffmpeg/LibreOffice jobs from UI background probes
+        self.thread_pool = QThreadPool(self)
         self.thread_pool.setMaxThreadCount(max_threads)
         self.signals = WorkerSignals()
         self.jobs: Dict[str, ConversionJob] = {}
         self._active_count = 0
+        self._in_flight: set[str] = set()
 
         # Connect internal worker signals
         self.signals.started.connect(self._on_started)
@@ -193,9 +207,14 @@ class JobRunner(QObject):
 
     def start_job(self, job_id: str) -> None:
         job = self.jobs.get(job_id)
-        if not job or job.status == JobStatus.RUNNING:
+        if not job or job.status == JobStatus.RUNNING or job_id in self._in_flight:
             return
 
+        job.cancel_requested = False
+        job.error_message = None
+        job.stderr_tail = None
+        job.progress = 0
+        self._in_flight.add(job_id)
         self._active_count += 1
         task = ConversionTask(job, self.signals)
         self.thread_pool.start(task)
@@ -209,7 +228,7 @@ class JobRunner(QObject):
         job = self.jobs.get(job_id)
         if job:
             job.cancel_requested = True
-            if job.status == JobStatus.PENDING:
+            if job.status == JobStatus.PENDING and job_id not in self._in_flight:
                 job.status = JobStatus.CANCELLED
                 self.job_updated.emit(job_id)
 
@@ -231,20 +250,18 @@ class JobRunner(QObject):
             job.progress = percent
         self.job_updated.emit(job_id)
 
-    def _on_completed(self, job_id: str, out_path: str) -> None:
+    def _finish_in_flight(self, job_id: str) -> None:
+        self._in_flight.discard(job_id)
         self._active_count = max(0, self._active_count - 1)
         self.job_updated.emit(job_id)
         if self._active_count == 0:
             self.all_completed.emit()
+
+    def _on_completed(self, job_id: str, out_path: str) -> None:
+        self._finish_in_flight(job_id)
 
     def _on_failed(self, job_id: str, msg: str, tail: str) -> None:
-        self._active_count = max(0, self._active_count - 1)
-        self.job_updated.emit(job_id)
-        if self._active_count == 0:
-            self.all_completed.emit()
+        self._finish_in_flight(job_id)
 
     def _on_cancelled(self, job_id: str) -> None:
-        self._active_count = max(0, self._active_count - 1)
-        self.job_updated.emit(job_id)
-        if self._active_count == 0:
-            self.all_completed.emit()
+        self._finish_in_flight(job_id)

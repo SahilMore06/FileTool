@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 import urllib.parse
 import zipfile
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from PySide6.QtCore import (
     QObject,
@@ -31,6 +32,7 @@ from PySide6.QtGui import (
     QDragMoveEvent,
     QDropEvent,
     QKeyEvent,
+    QMouseEvent,
     QPainter,
     QPixmap,
 )
@@ -248,11 +250,20 @@ class WheelWindow(QWidget):
     """Radial overlay window centered at cursor during file drags."""
 
     closed = Signal()
+    sticky_entered = Signal()
 
     def __init__(self, runner: Optional[JobRunner] = None, parent=None):
         super().__init__(parent)
         self.runner = runner or JobRunner()
         self.painter = WheelPainter()
+        self._qsettings = QSettings("FileTool", "FileTool")
+        self._ext_icon_cache: Dict[str, Optional[QPixmap]] = {}
+        self._haptic_performer = None
+        try:
+            from AppKit import NSHapticFeedbackManager
+            self._haptic_performer = NSHapticFeedbackManager.defaultPerformer()
+        except Exception:
+            self._haptic_performer = None
 
         self.setWindowFlags(
             Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
@@ -286,6 +297,10 @@ class WheelWindow(QWidget):
         self.file_icon: Optional[QPixmap] = None
         self.is_dropping: bool = False
         self.current_job_id: Optional[str] = None
+        self._sticky_mode: bool = False
+        self._hovered_any_petal: bool = False
+        self._ignore_drop_until: float = 0.0
+        self._mouse_pressed_inside: bool = False
 
         self._open_anim: Optional[QVariantAnimation] = None
         self._hover_anim: Optional[QVariantAnimation] = None
@@ -312,9 +327,8 @@ class WheelWindow(QWidget):
     # --- Theme & Lifecycle ---
 
     def _sync_theme_from_settings(self) -> None:
-        qs = QSettings("FileTool", "FileTool")
-        dark = qs.value("dark_mode", False, type=bool)
-        accent = qs.value("accent_preset", "amber", type=str)
+        dark = self._qsettings.value("dark_mode", False, type=bool)
+        accent = self._qsettings.value("accent_preset", "amber", type=str)
         self.set_theme(dark, accent)
 
     def set_theme(self, dark_mode: bool, accent_key: str) -> None:
@@ -341,11 +355,22 @@ class WheelWindow(QWidget):
         self.drop_progress = 0.0
         self.job_progress = 0
         self.hovered_index = -1
+        self.hovered_ring = 1
         self.hover_progress = 0.0
         self.open_opacity = 1.0
         self.open_scale = 1.0
+        self._sticky_mode = False
+        self._hovered_any_petal = False
+        self._ignore_drop_until = 0.0
+        self._mouse_pressed_inside = False
 
-        self._load_file_icon(self.dragged_files[0])
+        first_file = self.dragged_files[0]
+        self._load_file_icon(first_file)
+        try:
+            dpr = float(self.devicePixelRatioF() or 2.0)
+        except Exception:
+            dpr = 2.0
+        self.painter.preload_thumbnail(first_file, dpr=dpr)
         self._populate_segments()
 
         if cursor_x <= 0 and cursor_y <= 0:
@@ -357,6 +382,12 @@ class WheelWindow(QWidget):
 
         self._start_open_animation()
         show_without_activating(self)
+        play_sound("Pop")
+        trigger_haptic_tick()
+
+    def set_sticky_mode(self, sticky: bool = True) -> None:
+        """Mark whether wheel stays open waiting for explicit click/key selection."""
+        self._sticky_mode = bool(sticky)
 
     def switch_wheel(self, new_type: str) -> None:
         """Smoothly switch between Convert, Tools, and Actions wheels."""
@@ -368,6 +399,7 @@ class WheelWindow(QWidget):
         self.hovered_index = -1
         self.hovered_ring = 1
         self.hover_progress = 0.0
+        self._hovered_any_petal = False
 
         if should_reduce_motion():
             self.switch_rotation = 0.0
@@ -394,9 +426,9 @@ class WheelWindow(QWidget):
             self.update()
 
         self._switch_anim.valueChanged.connect(_on_switch_step)
-        self._switch_anim.finished.connect(lambda: play_sound("Tink"))  # Sound when wheel switches
-        self._switch_anim.finished.connect(lambda: trigger_haptic_tick())  # Haptic when wheel switches
         self._switch_anim.start()
+        play_sound("Tink")
+        trigger_haptic_tick()
 
     def cancel_wheel(self) -> None:
         """Cancel and close the wheel with shrink/fade animation."""
@@ -405,6 +437,10 @@ class WheelWindow(QWidget):
 
         if self._cancel_anim and self._cancel_anim.state() == QVariantAnimation.Running:
             return
+
+        self._sticky_mode = False
+        self._hovered_any_petal = False
+        self._mouse_pressed_inside = False
 
         self._cancel_anim = QVariantAnimation(self)
         self._cancel_anim.setDuration(CANCEL_DURATION_MS)
@@ -419,8 +455,8 @@ class WheelWindow(QWidget):
         def _on_cancel_done():
             self.hide()
             self.closed.emit()
-            play_sound("Fuse")  # Sound when wheel closes
-            trigger_haptic_tick()  # Haptic when wheel closes
+            play_sound("Fuse")
+            trigger_haptic_tick()
 
         self._cancel_anim.valueChanged.connect(_on_cancel_step)
         self._cancel_anim.finished.connect(_on_cancel_done)
@@ -444,7 +480,6 @@ class WheelWindow(QWidget):
             active_type = "actions"
 
         items: List[dict] = []
-        secondary_items: Optional[List[dict]] = None
 
         if active_type == "convert":
             ext = next(iter(extensions)) if extensions else ""
@@ -542,18 +577,30 @@ class WheelWindow(QWidget):
         self.secondary_segments = None
 
     def _load_file_icon(self, file_path: str) -> None:
+        ext = os.path.splitext(file_path)[1].lower()
+        cache_key = file_path if (ext in (".app", "") or os.path.isdir(file_path)) else ext
+        if cache_key in self._ext_icon_cache:
+            self.file_icon = self._ext_icon_cache[cache_key]
+            return
         try:
             from AppKit import NSBitmapImageRep, NSPNGFileType, NSWorkspace
             icon = NSWorkspace.sharedWorkspace().iconForFile_(file_path)
             icon.setSize_((64, 64))
             tiff = icon.TIFFRepresentation()
-            rep = NSBitmapImageRep.imageRepsWithData_(tiff)[0]
-            png = rep.representationUsingType_properties_(NSPNGFileType, None)
-            pix = QPixmap()
-            pix.loadFromData(bytes(png))
-            self.file_icon = pix
+            reps = NSBitmapImageRep.imageRepsWithData_(tiff) if tiff else None
+            if reps:
+                png = reps[0].representationUsingType_properties_(NSPNGFileType, None)
+                if png:
+                    pix = QPixmap()
+                    pix.loadFromData(bytes(png))
+                    self.file_icon = pix
+            if not tiff or not reps:
+                self.file_icon = None
         except Exception:
             self.file_icon = None
+        if len(self._ext_icon_cache) >= 64:
+            self._ext_icon_cache.pop(next(iter(self._ext_icon_cache)))
+        self._ext_icon_cache[cache_key] = self.file_icon
 
     # --- Animations ---
 
@@ -592,8 +639,6 @@ class WheelWindow(QWidget):
             self.update()
 
         self._open_anim.valueChanged.connect(_on_open_step)
-        self._open_anim.finished.connect(lambda: play_sound("Pop"))  # Sound when wheel opens
-        self._open_anim.finished.connect(lambda: trigger_haptic_tick())  # Haptic when wheel opens
         self._open_anim.start()
 
     def _update_hover(self, index: int, ring: int) -> None:
@@ -602,6 +647,8 @@ class WheelWindow(QWidget):
 
         self.hovered_index = index
         self.hovered_ring = ring
+        if index != -1 and ring in (1, 2):
+            self._hovered_any_petal = True
 
         # Check if hovering "More..." segment to open secondary ring
         if ring == 1 and 0 <= index < len(self.primary_segments):
@@ -614,18 +661,11 @@ class WheelWindow(QWidget):
             self.secondary_segments = None
 
         # Subtle haptic feedback on hover change
-        if index != -1:  # Only if hovering over a segment (not hub/outside)
+        if index != -1 and self._haptic_performer is not None:
             try:
-                from AppKit import NSHapticFeedbackManager
-                performer = NSHapticFeedbackManager.defaultPerformer()
-                if performer:
-                    # Use a lighter haptic feedback for hover
-                    performer.performFeedbackPattern_performanceTime_(
-                        1,  # NSHapticFeedbackPatternAlignmentChange (lighter tick)
-                        0,  # NSHapticFeedbackPerformanceTimeNow
-                    )
+                self._haptic_performer.performFeedbackPattern_performanceTime_(1, 0)
             except Exception:
-                pass  # Silently fail if haptic not available
+                pass
 
         # Hover animation
         if self._hover_anim and self._hover_anim.state() == QVariantAnimation.Running:
@@ -674,7 +714,30 @@ class WheelWindow(QWidget):
         else:
             self._update_hover(-1, ring=1)
 
-    # --- Drag & Drop Handling ---
+    # --- Drag, Mouse & Drop Handling ---
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if self.isVisible() and not self.is_dropping:
+            pos = event.position()
+            self.update_cursor_pos(self.x() + pos.x(), self.y() + pos.y())
+        super().mouseMoveEvent(event)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.LeftButton and self.isVisible() and not self.is_dropping:
+            self._mouse_pressed_inside = True
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.LeftButton and self._mouse_pressed_inside:
+            self._mouse_pressed_inside = False
+            if self.isVisible() and not self.is_dropping:
+                pos = event.position()
+                self.trigger_drop_at(self.x() + pos.x(), self.y() + pos.y())
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         if event.mimeData().hasUrls():
@@ -697,8 +760,14 @@ class WheelWindow(QWidget):
         self.trigger_drop_at(self.x() + pos.x(), self.y() + pos.y())
 
     def trigger_drop_at(self, global_x: float, global_y: float) -> None:
-        """Execute action for segment under cursor at drop time."""
-        if self.is_dropping:
+        """Execute action for segment under cursor, or enter sticky keep-open mode on hub."""
+        now = time.monotonic()
+        if (
+            self.is_dropping
+            or not self.isVisible()
+            or now < self._ignore_drop_until
+            or (self._cancel_anim and self._cancel_anim.state() == QVariantAnimation.Running)
+        ):
             return
 
         local_x = global_x - self.x()
@@ -710,16 +779,31 @@ class WheelWindow(QWidget):
 
         res = hit_test(dx, dy, self.primary_segments, self.secondary_segments)
 
-        if res.hit_type in ("hub", "outside"):
-            # Center drop or outside drop = cancel!
+        if res.hit_type == "hub":
+            if not self._sticky_mode and not self._hovered_any_petal:
+                # User released at center right after triggering: keep wheel open cleanly!
+                self._sticky_mode = True
+                self._ignore_drop_until = now + 0.15
+                self.sticky_entered.emit()
+                play_sound("Tink")
+                trigger_haptic_tick("alignment")
+                return
+            self._ignore_drop_until = now + 0.15
+            self.cancel_wheel()
+            return
+
+        if res.hit_type == "outside":
+            self._ignore_drop_until = now + 0.15
             self.cancel_wheel()
             return
 
         chosen_seg: Optional[SegmentArc] = res.segment
         if not chosen_seg:
+            self._ignore_drop_until = now + 0.15
             self.cancel_wheel()
             return
 
+        self._ignore_drop_until = now + 0.15
         self._execute_segment(chosen_seg)
 
     # --- Keyboard Navigation ---
@@ -805,23 +889,36 @@ class WheelWindow(QWidget):
         files = list(self.dragged_files)
 
         if action_type == "convert":
-            # Run via Runner
+            # Run single or batch conversion via Runner
             target_ext = str(action_data)
-            src_path = Path(files[0])
-            job = ConversionJob(
-                src_path=src_path,
-                dest_ext=target_ext,
-                target_dir=src_path.parent,
-                overwrite=False,
-            )
-            self.current_job_id = job.id
-            self.runner.add_job(job)
-            self.runner.start_job(job.id)
+            self._batch_jobs = set()
+            self._batch_progress = {}
+            self._batch_outputs = []
+            self._batch_errors = []
+            jobs = []
+            for file_str in files:
+                src_path = Path(file_str)
+                job = ConversionJob(
+                    src_path=src_path,
+                    dest_ext=target_ext,
+                    target_dir=src_path.parent,
+                    overwrite=False,
+                )
+                jobs.append(job)
+                self._batch_jobs.add(job.id)
+                self._batch_progress[job.id] = 0
+            self._batch_total = len(jobs)
+            self.current_job_id = jobs[0].id if jobs else None
+            for job in jobs:
+                self.runner.add_job(job)
+                self.runner.start_job(job.id)
 
         elif action_type == "tool":
+            self._batch_jobs = set()
             self._run_tool_action(str(action_data), files)
 
         elif action_type == "action":
+            self._batch_jobs = set()
             self._run_native_action(str(action_data), files)
 
     def _on_tool_progress(self, percent: int) -> None:
@@ -865,16 +962,43 @@ class WheelWindow(QWidget):
     # --- Runner Callbacks & Completion Animations ---
 
     def _on_job_progress(self, job_id: str, percent: int) -> None:
-        if self.current_job_id == job_id:
+        batch_jobs = getattr(self, "_batch_jobs", None)
+        if batch_jobs and job_id in batch_jobs:
+            self._batch_progress[job_id] = percent
+            total = max(1, getattr(self, "_batch_total", len(batch_jobs)))
+            self.job_progress = int(sum(self._batch_progress.values()) / total)
+            self.update()
+        elif self.current_job_id == job_id:
             self.job_progress = percent
             self.update()
 
     def _on_job_completed(self, job_id: str, output_path: str) -> None:
-        if self.current_job_id == job_id:
+        batch_jobs = getattr(self, "_batch_jobs", None)
+        if batch_jobs and job_id in batch_jobs:
+            batch_jobs.discard(job_id)
+            self._batch_progress[job_id] = 100
+            self._batch_outputs.append(output_path)
+            if not batch_jobs:
+                summary = (
+                    self._batch_outputs[0]
+                    if len(self._batch_outputs) == 1
+                    else f"{len(self._batch_outputs)} files"
+                )
+                self._on_action_finished(summary)
+        elif self.current_job_id == job_id:
             self._on_action_finished(output_path)
 
     def _on_job_failed(self, job_id: str, err: str, tail: str) -> None:
-        if self.current_job_id == job_id:
+        batch_jobs = getattr(self, "_batch_jobs", None)
+        if batch_jobs and job_id in batch_jobs:
+            batch_jobs.discard(job_id)
+            self._batch_errors.append(err)
+            if not batch_jobs:
+                if self._batch_outputs:
+                    self._on_action_finished(f"{len(self._batch_outputs)} files")
+                else:
+                    self._on_action_error(self._batch_errors[0])
+        elif self.current_job_id == job_id:
             self._on_action_error(err)
 
     def _on_action_finished(self, out_path: str) -> None:
@@ -884,10 +1008,16 @@ class WheelWindow(QWidget):
 
         trigger_haptic_tick()
         play_sound("Hero")
+        is_summary = out_path.endswith(" files") and not Path(out_path).exists()
+        notif_msg = (
+            f"Converted {out_path} cleanly"
+            if is_summary
+            else f"Output saved: {Path(out_path).name}"
+        )
         send_completion_notification(
             title="FileTool Action Complete",
-            message=f"Output saved: {Path(out_path).name}",
-            file_path=out_path,
+            message=notif_msg,
+            file_path=None if is_summary else out_path,
         )
         QTimer.singleShot(DONE_DURATION_MS, self._finish_and_close)
 
@@ -920,6 +1050,10 @@ class WheelWindow(QWidget):
         self.hide()
         self.is_dropping = False
         self.current_job_id = None
+        self._batch_jobs = set()
+        self._sticky_mode = False
+        self._hovered_any_petal = False
+        self._mouse_pressed_inside = False
         self.closed.emit()
 
     # --- Paint Event ---

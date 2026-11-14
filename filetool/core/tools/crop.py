@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from PIL import Image
 
 
 def crop_image(src: Path, dest: Path, left: int, top: int, right: int, bottom: int) -> Path:
     """
     Crop an image to the specified bounding box (left, top, right, bottom).
     """
+    from PIL import Image
+
     with Image.open(src) as img:
         w, h = img.size
         # Clamp to bounds

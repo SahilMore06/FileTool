@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 import math
 import os
 from pathlib import Path
 from typing import Iterable, List, Optional
 
-from PySide6.QtCore import QEasingCurve, QPointF, QRectF, Qt, QTimer, QVariantAnimation, Signal
+from PySide6.QtCore import (
+    QCoreApplication,
+    QEasingCurve,
+    QPointF,
+    QRectF,
+    Qt,
+    QTimer,
+    QVariantAnimation,
+    Signal,
+)
 from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient
 from PySide6.QtWidgets import QAbstractButton, QWidget
 
@@ -667,6 +677,38 @@ def draw_brand_emblem(
     painter.restore()
 
 
+@lru_cache(maxsize=256)
+def _cached_brand_pixmap(
+    app_id: int,
+    size: int,
+    accent_color: str,
+    dpr: float,
+    rot_q: float,
+    hover_q: float,
+    progress: Optional[int],
+    done_q: float,
+    monochrome: bool,
+) -> QPixmap:
+    phys = max(16, int(round(size * dpr)))
+    pix = QPixmap(phys, phys)
+    pix.setDevicePixelRatio(dpr)
+    pix.fill(Qt.transparent)
+    p = QPainter(pix)
+    if p.isActive():
+        draw_brand_emblem(
+            p,
+            QRectF(0.0, 0.0, float(size), float(size)),
+            accent_color=accent_color,
+            rotation_deg=rot_q,
+            hover_t=hover_q,
+            progress=progress,
+            done_t=done_q,
+            monochrome=monochrome,
+        )
+        p.end()
+    return pix
+
+
 def create_brand_pixmap(
     size: int = 20,
     accent_color: str = "#F28A32",
@@ -678,32 +720,35 @@ def create_brand_pixmap(
     monochrome: bool = False,
 ) -> QPixmap:
     """Render the FileTool radial emblem into a Retina-ready QPixmap."""
-    phys = max(16, int(round(size * dpr)))
-    pix = QPixmap(phys, phys)
-    pix.setDevicePixelRatio(dpr)
-    pix.fill(Qt.transparent)
-    p = QPainter(pix)
-    if p.isActive():
-        draw_brand_emblem(
-            p,
-            QRectF(0.0, 0.0, float(size), float(size)),
-            accent_color=accent_color,
-            rotation_deg=rotation_deg,
-            hover_t=hover_t,
-            progress=progress,
-            done_t=done_t,
-            monochrome=monochrome,
-        )
-        p.end()
-    return pix
+    app_id = id(QCoreApplication.instance())
+    rot_q = round(rotation_deg % 360.0, 1)
+    hover_q = round(hover_t, 2)
+    done_q = round(done_t, 2)
+    prog_val = int(progress) if progress is not None else None
+    return _cached_brand_pixmap(
+        app_id,
+        size,
+        accent_color,
+        dpr,
+        rot_q,
+        hover_q,
+        prog_val,
+        done_q,
+        monochrome,
+    )
 
 
-def create_brand_icon(accent_color: str = "#F28A32") -> QIcon:
-    """Build a multi-resolution FileTool QIcon for window and app branding."""
+@lru_cache(maxsize=32)
+def _cached_brand_icon(app_id: int, accent_color: str) -> QIcon:
     icon = QIcon()
     for sz in (16, 20, 32, 64):
         icon.addPixmap(create_brand_pixmap(size=sz, accent_color=accent_color, dpr=2.0))
     return icon
+
+
+def create_brand_icon(accent_color: str = "#F28A32") -> QIcon:
+    """Build a multi-resolution FileTool QIcon for window and app branding."""
+    return _cached_brand_icon(id(QCoreApplication.instance()), accent_color)
 
 
 class LogoWidget(QWidget):
@@ -763,6 +808,8 @@ class LogoWidget(QWidget):
         self.update()
 
     def set_accent_color(self, hex_color: str) -> None:
+        if self._accent == hex_color:
+            return
         self._accent = hex_color
         self.update()
 
@@ -778,7 +825,10 @@ class LogoWidget(QWidget):
 
     def set_active_progress(self, spinning: bool, progress: Optional[int] = None) -> None:
         """Toggle continuous spin and circular progress arc during conversions."""
-        self._spinning = spinning and not should_reduce_motion()
+        target_spinning = spinning and not should_reduce_motion()
+        if self._spinning == target_spinning and self._progress == progress:
+            return
+        self._spinning = target_spinning
         self._progress = progress
         if self._spinning:
             if not self._spin_timer.isActive():

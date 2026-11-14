@@ -249,3 +249,50 @@ def test_modifier_tap_triggers_wheel_if_files_present_on_pasteboard():
     assert events[0].wheel_type == "convert"
     assert sm.wheel_open
 
+
+def test_sticky_mode_tracks_cursor_switches_wheel_and_preserves_files_on_click():
+    sm = DragStateMachine()
+    fake_files = ["/Users/test/photo.png"]
+
+    sm.open_sticky_wheel("convert", (200.0, 200.0), fake_files)
+    assert sm.wheel_open
+    assert sm.sticky_mode
+    assert sm.dragged_files == fake_files
+
+    # Cursor movement with mouse button UP still emits "move" for live hover
+    move_evs = sm.update(1.0, False, 0, (240.0, 140.0), 5, lambda: [])
+    assert any(e.event_type == "move" and e.position == (240.0, 140.0) for e in move_evs)
+
+    # Modifier press & release while mouse UP switches wheel cleanly
+    sw_evs = sm.update(1.05, False, MASK_COMMAND, (240.0, 140.0), 5, lambda: [])
+    assert any(e.event_type == "switch" and e.wheel_type == "tools" for e in sw_evs)
+    assert sm.active_wheel_type == "tools"
+    sm.update(1.10, False, 0, (240.0, 140.0), 5, lambda: [])
+    assert sm.wheel_open
+
+    # Clicking down on a petal must NOT wipe dragged_files; release emits drop with files
+    sm.update(1.20, True, 0, (240.0, 140.0), 5, lambda: [])
+    assert sm.dragged_files == fake_files
+    drop_evs = sm.update(1.25, False, 0, (240.0, 140.0), 5, lambda: [])
+    assert len(drop_evs) == 1
+    assert drop_evs[0].event_type == "drop"
+    assert drop_evs[0].wheel_type == "tools"
+    assert drop_evs[0].files == fake_files
+
+
+def test_keyboard_navigation_is_edge_triggered_per_press():
+    sm = DragStateMachine()
+    fake_files = ["/Users/test/photo.png"]
+    sm.open_sticky_wheel("convert", (200.0, 200.0), fake_files)
+
+    # Holding Right arrow across multiple ticks only emits once per key press
+    e1 = sm.update(1.0, False, 0, (200.0, 200.0), 1, lambda: [], key_states={VK_RIGHT: True})
+    e2 = sm.update(1.02, False, 0, (200.0, 200.0), 1, lambda: [], key_states={VK_RIGHT: True})
+    assert sum(1 for e in e1 if e.event_type == "nav") == 1
+    assert sum(1 for e in e2 if e.event_type == "nav") == 0
+
+    # Release and press again emits again
+    sm.update(1.04, False, 0, (200.0, 200.0), 1, lambda: [], key_states={VK_RIGHT: False})
+    e3 = sm.update(1.06, False, 0, (200.0, 200.0), 1, lambda: [], key_states={VK_RIGHT: True})
+    assert sum(1 for e in e3 if e.event_type == "nav") == 1
+

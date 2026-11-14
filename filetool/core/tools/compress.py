@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from PIL import Image
 
 from filetool.core.deps import resolver
 from filetool.core.registry import registry
@@ -16,19 +15,31 @@ logger = logging.getLogger("filetool.tools.compress")
 def compress_image(src: Path, dest: Path, quality: int = 65) -> Path:
     """Compress image using Pillow or ImageMagick."""
     ext = src.suffix.lower().lstrip(".")
-    if ext in ("jpg", "jpeg"):
-        with Image.open(src) as img:
-            rgb_img = img.convert("RGB") if img.mode != "RGB" else img
-            rgb_img.save(dest, "JPEG", quality=quality, optimize=True)
-    elif ext == "png":
-        with Image.open(src) as img:
-            img.save(dest, "PNG", optimize=True)
-    elif ext in ("heic", "avif"):
+    if ext in ("heic", "avif"):
         magick = resolver.get_tool_path("magick")
         cmd = [magick, str(src), "-quality", str(quality), str(dest)]
         res = run_command(cmd)
         if not res.success:
             raise RuntimeError(f"Image compression failed: {res.stderr_tail()}")
+        return dest
+
+    from PIL import Image
+
+    if ext in ("jpg", "jpeg"):
+        with Image.open(src) as img:
+            if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+                alpha = img.convert("RGBA")
+                bg = Image.new("RGB", alpha.size, (255, 255, 255))
+                bg.paste(alpha, mask=alpha.split()[-1])
+                rgb_img = bg
+            elif img.mode != "RGB":
+                rgb_img = img.convert("RGB")
+            else:
+                rgb_img = img
+            rgb_img.save(dest, "JPEG", quality=quality, optimize=True)
+    elif ext == "png":
+        with Image.open(src) as img:
+            img.save(dest, "PNG", optimize=True)
     else:
         with Image.open(src) as img:
             img.save(dest, optimize=True)

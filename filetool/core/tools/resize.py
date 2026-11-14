@@ -6,9 +6,6 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from PIL import Image
-import pypdf
-
 logger = logging.getLogger("filetool.tools.resize")
 
 
@@ -22,6 +19,8 @@ def resize_image(
     """
     Resize image dimensions preserving aspect ratio if only one dimension is supplied.
     """
+    from PIL import Image
+
     with Image.open(src) as img:
         orig_w, orig_h = img.size
 
@@ -47,6 +46,8 @@ def resize_image(
 
 def rotate_image(src: Path, dest: Path, degrees: int = 90) -> Path:
     """Rotate image clockwise by specified degrees (e.g. 90, 180, 270)."""
+    from PIL import Image
+
     with Image.open(src) as img:
         # Pillow rotate is counter-clockwise by default, so use -degrees to rotate clockwise
         rotated = img.rotate(-degrees, expand=True)
@@ -56,6 +57,8 @@ def rotate_image(src: Path, dest: Path, degrees: int = 90) -> Path:
 
 def rotate_pdf(src: Path, dest: Path, degrees: int = 90) -> Path:
     """Rotate all pages of a PDF document clockwise."""
+    import pypdf
+
     reader = pypdf.PdfReader(str(src))
     writer = pypdf.PdfWriter()
 

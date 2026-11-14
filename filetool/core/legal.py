@@ -80,40 +80,30 @@ def render_legal_html(doc_key: str, tokens: Dict[str, str]) -> str:
     if doc_key == "privacy":
         title = "FileTool Privacy Policy"
         lead = "Your files never leave your Mac. Zero uploads, zero telemetry, zero tracking."
-        highlights = PRIVACY_HIGHLIGHTS
         sections = PRIVACY_SECTIONS
     else:
         title = "FileTool Terms & Conditions"
         lead = "MIT open-source terms, local file safety defaults, and \"AS IS\" software notice."
-        highlights = TERMS_HIGHLIGHTS
         sections = TERMS_SECTIONS
 
     fg = tokens["text_primary"]
     fg2 = tokens["text_secondary"]
-    accent_text = tokens["accent_text"]
     border = tokens["border"]
 
     blocks: List[str] = [
-        f"<div style='font-family: \".AppleSystemUIFont\", \"Helvetica Neue\", sans-serif; color: {fg}; line-height: 1.55;'>",
-        f"<h2 style='margin: 0 0 4px 0; font-size: 16px; font-weight: 700; color: {fg};'>{escape(title)}</h2>",
-        f"<p style='margin: 0 0 12px 0; font-size: 12.5px; color: {fg2};'>{escape(lead)}</p>",
-        f"<div style='border-bottom: 1px solid {border}; padding-bottom: 10px; margin-bottom: 12px;'>",
+        f"<div style='font-family: \".AppleSystemUIFont\", \"Helvetica Neue\", sans-serif; color: {fg}; line-height: 1.65; padding-bottom: 12px;'>",
+        f"<h2 style='margin: 0 0 4px 0; font-size: 18px; font-weight: 700; color: {fg}; letter-spacing: -0.3px;'>{escape(title)}</h2>",
+        f"<p style='margin: 0 0 14px 0; font-size: 12.5px; color: {fg2};'>{escape(lead)}</p>",
+        f"<div style='border-bottom: 1px solid {border}; margin-bottom: 16px;'></div>",
     ]
-    for h_title, h_desc in highlights:
-        blocks.append(
-            f"<p style='margin: 0 0 6px 0; font-size: 12px; color: {fg};'>"
-            f"<span style='font-weight: 700; color: {accent_text};'>{escape(h_title)}:</span> "
-            f"{escape(h_desc)}</p>"
-        )
-    blocks.append("</div>")
 
     for heading, paragraphs in sections:
         blocks.append(
-            f"<h3 style='margin: 12px 0 5px 0; font-size: 13px; font-weight: 700; color: {fg};'>{escape(heading)}</h3>"
+            f"<h3 style='margin: 15px 0 6px 0; font-size: 13.5px; font-weight: 600; color: {fg};'>{escape(heading)}</h3>"
         )
         for para in paragraphs:
             blocks.append(
-                f"<p style='margin: 0 0 7px 0; font-size: 12px; color: {fg2};'>{escape(para)}</p>"
+                f"<p style='margin: 0 0 9px 0; font-size: 12.5px; color: {fg2};'>{escape(para)}</p>"
             )
 
     blocks.append("</div>")

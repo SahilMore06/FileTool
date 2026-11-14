@@ -1,8 +1,5 @@
 """macOS platform integrations: drag monitor, window management, actions."""
 
-import sys
-import platform
-
 from filetool.platform.mac_drag_monitor import MacDragMonitor, DragStateMachine
 from filetool.platform.mac_actions import (
     play_tactile_feedback,
@@ -25,18 +22,6 @@ from filetool.platform.mac_window import (
     clamp_window_to_screen,
     mac_screen_to_qt_coords,
 )
-
-# Bridge for top-level `platform.mac_...` imports without shadowing standard library platform
-import filetool.platform.mac_drag_monitor as _mdm
-import filetool.platform.mac_actions as _ma
-import filetool.platform.mac_window as _mw
-
-sys.modules["platform.mac_drag_monitor"] = _mdm
-sys.modules["platform.mac_actions"] = _ma
-sys.modules["platform.mac_window"] = _mw
-setattr(platform, "mac_drag_monitor", _mdm)
-setattr(platform, "mac_actions", _ma)
-setattr(platform, "mac_window", _mw)
 
 __all__ = [
     "MacDragMonitor",

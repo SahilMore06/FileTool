@@ -34,3 +34,24 @@ def test_dependency_report_string():
     assert "ffmpeg" in report
     assert "magick" in report
     assert "soffice" in report
+
+
+def test_parallel_check_all_and_clear_cache(tmp_path):
+    """Verify parallel check_all preserves metadata keys and clear_cache picks up newly installed tools."""
+    from filetool.core.deps import TOOLS_METADATA
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    r = ToolResolver(search_paths=[bin_dir])
+    assert r.resolve("custom_later") is None
+
+    new_tool = bin_dir / "custom_later"
+    new_tool.write_text("#!/bin/sh\necho 2.1\n")
+    new_tool.chmod(0o755)
+    # Cached miss remains until clear_cache()
+    assert r.resolve("custom_later") is None
+    r.clear_cache()
+    assert r.resolve("custom_later") == new_tool
+
+    all_statuses = resolver.check_all()
+    assert list(all_statuses.keys()) == list(TOOLS_METADATA.keys())

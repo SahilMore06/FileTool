@@ -53,7 +53,7 @@ def extract_archive(src: Path, dest_dir: Path) -> Path:
     if in_ext in ("tar", "gz", "tgz"):
         mode = "r:gz" if in_ext in ("gz", "tgz") else "r:*"
         with tarfile.open(src, mode) as tf:
-            tf.extractall(dest_dir)
+            tf.extractall(dest_dir, filter="data")
         return dest_dir
 
     if in_ext == "rar":
@@ -68,8 +68,8 @@ def create_archive(src_path: Path, dest_archive: Path, options: Dict[str, Any]) 
     level = str(options.get("compression_level", 5))
 
     sevenzip = resolver.resolve("7zz")
-    if sevenzip:
-        # Determine 7zz format flag
+    if sevenzip and not (out_ext == "gz" and src_path.is_dir()):
+        # Determine 7zz format flag (gz directories use tar.gz fallback below)
         type_flag = "-tzip" if out_ext == "zip" else ("-ttar" if out_ext == "tar" else "-tgzip")
         cmd = [str(sevenzip), "a", type_flag, f"-mx={level}", str(dest_archive)]
         if src_path.is_dir():

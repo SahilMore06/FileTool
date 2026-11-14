@@ -66,6 +66,7 @@ class TrayAnimator(QObject):
         self._done_t: float = 0.0
         self._converting = False
         self._wheel_open = False
+        self._last_icon_sig: tuple | None = None
 
         self._spin_timer = QTimer(self)
         self._spin_timer.setInterval(33)  # ~30fps only while actively converting or wheel open
@@ -84,6 +85,15 @@ class TrayAnimator(QObject):
         self._apply_icon()
 
     def _apply_icon(self) -> None:
+        sig = (
+            self._accent,
+            round(self._rotation_deg % 360.0, 1),
+            self._progress,
+            round(self._done_t, 2),
+        )
+        if sig == self._last_icon_sig:
+            return
+        self._last_icon_sig = sig
         self._tray.setIcon(
             create_tray_icon(
                 accent_color=self._accent,
@@ -255,6 +265,8 @@ def main() -> int:
         if qsettings.value("wheel_enabled", True, type=bool):
             qt_x, qt_y = mac_screen_to_qt_coords(x, y)
             wheel_window.show_wheel(wheel_type, qt_x, qt_y, files)
+            if monitor.state_machine.sticky_mode:
+                wheel_window.set_sticky_mode(True)
             tray_animator.set_wheel_open(True)
 
     def on_move(x: float, y: float):
@@ -266,10 +278,19 @@ def main() -> int:
         if wheel_window.isVisible():
             qt_x, qt_y = mac_screen_to_qt_coords(x, y)
             wheel_window.trigger_drop_at(qt_x, qt_y)
-        tray_animator.set_wheel_open(False)
+        if not wheel_window._sticky_mode:
+            tray_animator.set_wheel_open(False)
 
     def on_cancel():
         wheel_window.cancel_wheel()
+        tray_animator.set_wheel_open(False)
+
+    def on_sticky_entered():
+        monitor.enter_sticky_mode(wheel_window.wheel_type, wheel_window.dragged_files)
+        tray_animator.set_wheel_open(True)
+
+    def on_wheel_closed():
+        monitor.state_machine.cancel_wheel()
         tray_animator.set_wheel_open(False)
 
     monitor.wheel_triggered.connect(on_trigger)
@@ -278,6 +299,14 @@ def main() -> int:
     monitor.wheel_dropped.connect(on_drop)
     monitor.wheel_cancelled.connect(on_cancel)
     monitor.wheel_navigated.connect(wheel_window.navigate_key)
+    wheel_window.sticky_entered.connect(on_sticky_entered)
+    wheel_window.closed.connect(on_wheel_closed)
+
+    def _sync_wheel_enabled(enabled: bool) -> None:
+        """Propagate wheel enablement to the drag monitor and dismiss active overlays."""
+        monitor.set_enabled(enabled)
+        if not enabled and wheel_window.isVisible():
+            wheel_window.cancel_wheel()
 
     def on_settings_saved(s: dict):
         nonlocal key_mappings
@@ -287,8 +316,10 @@ def main() -> int:
         if "accessory_mode" in s:
             set_macos_accessory_mode(s["accessory_mode"])
         wheel_window.set_theme(window.dark_mode, window.accent_key)
+        wheel_enabled = bool(s.get("wheel_enabled", qsettings.value("wheel_enabled", True, type=bool)))
+        _sync_wheel_enabled(wheel_enabled)
         popover.update_state(
-            wheel_enabled=bool(s.get("wheel_enabled", qsettings.value("wheel_enabled", True, type=bool))),
+            wheel_enabled=wheel_enabled,
             key_mappings=key_mappings,
             tools_summary=_installed_tools_summary(),
         )
@@ -315,10 +346,18 @@ def main() -> int:
     window.settings_updated.connect(on_settings_saved)
     window.theme_updated.connect(on_theme_updated)
     window.queue_progress_changed.connect(on_queue_progress)
+    monitor.set_enabled(qsettings.value("wheel_enabled", True, type=bool))
     monitor.start()
+    app.aboutToQuit.connect(monitor.stop)
 
     def start_onboarding(first_boot: bool = False):
         _activate_for_popover()
+        if window._onboarding_win is not None and window._onboarding_win.isVisible():
+            ob_win = window._onboarding_win
+            ob_win.show()
+            ob_win.raise_()
+            ob_win.activateWindow()
+            return ob_win
         ob_win = window.open_onboarding(first_boot=first_boot, initial_step=0, qsettings=qsettings)
         ob_win.onboarding_completed.connect(lambda _r: tray_animator.pulse_turn(180.0, 520))
         if first_boot:
@@ -330,9 +369,12 @@ def main() -> int:
             start_onboarding(first_boot=True)
             return
         _activate_for_popover()
+        if window.isMinimized():
+            window.showNormal()
         window.show()
         window.raise_()
         window.activateWindow()
+        QTimer.singleShot(30, lambda: (_activate_for_popover(), window.raise_(), window.activateWindow()))
         window.logo.spin_once(60.0, 300)
 
     def open_prefs():
@@ -351,6 +393,7 @@ def main() -> int:
 
     def on_wheel_toggled(enabled: bool):
         qsettings.setValue("wheel_enabled", enabled)
+        _sync_wheel_enabled(enabled)
         window.settings_page.sw_wheel.setChecked(enabled)
         trigger_haptic_tick("alignment")
         tray_animator.pulse_turn(60.0 if enabled else -60.0, 260)

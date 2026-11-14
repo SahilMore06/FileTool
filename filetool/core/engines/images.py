@@ -3,26 +3,40 @@
 from __future__ import annotations
 
 import logging
+import threading
 from pathlib import Path
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
-from PIL import Image
-import pillow_heif
-
-# Register HEIF opener with Pillow for seamless reading of .heic files
-pillow_heif.register_heif_opener()
+if TYPE_CHECKING:
+    from PIL import Image
 
 from filetool.core.deps import resolver
 from filetool.core.registry import Converter, OptionDefinition, registry
 from filetool.core.utils import run_command
 
+_pil_lock = threading.Lock()
+_heif_registered = False
+
+
+def _get_pil_image():
+    """Import Pillow Image and register HEIF opener lazily once per process."""
+    global _heif_registered
+    from PIL import Image
+
+    if not _heif_registered:
+        with _pil_lock:
+            if not _heif_registered:
+                import pillow_heif
+
+                # Register HEIF opener with Pillow for seamless reading of .heic files
+                pillow_heif.register_heif_opener()
+                _heif_registered = True
+    return Image
+
 logger = logging.getLogger("filetool.engines.images")
 
 # Input formats supported
 IMAGE_INPUT_FORMATS = ("jpg", "jpeg", "png", "webp", "heic", "tiff", "tif", "avif", "bmp", "svg")
-
-# Target output formats supported
-IMAGE_OUTPUT_FORMATS = ("jpg", "jpeg", "png", "webp", "heic", "tiff", "avif", "bmp", "pdf")
 
 IMAGE_OPTIONS = {
     "quality": OptionDefinition(
@@ -48,6 +62,7 @@ IMAGE_OPTIONS = {
 
 def _flatten_transparency(img: Image.Image) -> Image.Image:
     """Composite RGBA/transparency onto a clean white RGB background."""
+    Image = _get_pil_image()
     if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
         alpha_img = img.convert("RGBA")
         background = Image.new("RGB", alpha_img.size, (255, 255, 255))
@@ -117,11 +132,13 @@ def convert_image(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
         return dest
 
     if out_ext == "pdf":
+        Image = _get_pil_image()
         with Image.open(src) as img:
             rgb_img = _flatten_transparency(img)
             rgb_img.save(dest, "PDF", resolution=float(dpi))
         return dest
 
+    Image = _get_pil_image()
     with Image.open(src) as img:
         save_kwargs: Dict[str, Any] = {}
 

@@ -25,11 +25,13 @@ def trim_media(
     start_time/end_time can be seconds (e.g. 5.5) or HH:MM:SS timestamps (e.g. '00:01:30').
     """
     ffmpeg = resolver.get_tool_path("ffmpeg")
-    cmd = [ffmpeg, "-y", "-ss", str(start_time), "-i", str(src)]
-
+    input_seek = ["-ss", str(start_time)]
     if end_time is not None:
-        cmd.extend(["-to", str(end_time)])
-    elif duration is not None:
+        # Place -to before -i so end_time refers to source timeline, not elapsed duration
+        input_seek.extend(["-to", str(end_time)])
+    cmd = [ffmpeg, "-y", *input_seek, "-i", str(src)]
+
+    if end_time is None and duration is not None:
         cmd.extend(["-t", str(duration)])
 
     if not reencode:
@@ -42,10 +44,8 @@ def trim_media(
     if not res.success or not dest.exists():
         # Fallback to re-encoding if stream copy failed
         logger.info("Direct stream copy failed for trim; retrying with re-encoding")
-        cmd_reencode = [ffmpeg, "-y", "-ss", str(start_time), "-i", str(src)]
-        if end_time is not None:
-            cmd_reencode.extend(["-to", str(end_time)])
-        elif duration is not None:
+        cmd_reencode = [ffmpeg, "-y", *input_seek, "-i", str(src)]
+        if end_time is None and duration is not None:
             cmd_reencode.extend(["-t", str(duration)])
         cmd_reencode.append(str(dest))
 

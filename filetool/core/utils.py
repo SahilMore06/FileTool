@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 import logging
+from logging.handlers import RotatingFileHandler
 import os
+import re
 import shutil
 import subprocess
 import tempfile
+import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Generator, Sequence
+
+_output_path_lock = threading.Lock()
+_reserved_output_paths: set[Path] = set()
 
 LOG_DIR = Path.home() / "Library" / "Logs" / "FileTool"
 LOG_FILE = LOG_DIR / "filetool.log"
@@ -29,7 +35,12 @@ def setup_logging(level: int = logging.INFO) -> logging.Logger:
             "%(asctime)s [%(levelname)s] [%(name)s:%(lineno)d] %(message)s"
         )
 
-        file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
+        file_handler = RotatingFileHandler(
+            LOG_FILE,
+            maxBytes=5 * 1024 * 1024,
+            backupCount=3,
+            encoding="utf-8",
+        )
         file_handler.setLevel(level)
         file_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
@@ -48,7 +59,7 @@ def get_unique_output_path(target_path: Path | str) -> Path:
     If 'report.pdf' exists, generates 'report (1).pdf', 'report (2).pdf', etc.
     """
     path = Path(target_path).resolve()
-    if not path.exists():
+    if not path.exists() and path not in _reserved_output_paths:
         return path
 
     parent = path.parent
@@ -58,9 +69,26 @@ def get_unique_output_path(target_path: Path | str) -> Path:
     counter = 1
     while True:
         candidate = parent / f"{stem} ({counter}){suffix}"
-        if not candidate.exists():
+        if not candidate.exists() and candidate not in _reserved_output_paths:
             return candidate
         counter += 1
+
+
+def reserve_unique_output_path(target_path: Path | str) -> Path:
+    """Atomically reserve an unused output path for concurrent batch conversions."""
+    with _output_path_lock:
+        chosen = get_unique_output_path(target_path)
+        _reserved_output_paths.add(chosen)
+        return chosen
+
+
+def release_reserved_output_path(path: Path | str | None) -> None:
+    """Release an output path reservation once the worker finishes."""
+    if path is None:
+        return
+    resolved = Path(path).resolve()
+    with _output_path_lock:
+        _reserved_output_paths.discard(resolved)
 
 
 @contextmanager
@@ -159,3 +187,25 @@ def run_command(
             stderr=str(exc),
             cmd=cmd,
         )
+
+
+def natural_sort_key(path: Path | str) -> tuple:
+    """Sort key splitting digit runs so page-2 comes before page-10."""
+    name = Path(path).name
+    return tuple(int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", name))
+
+
+def build_soffice_convert_cmd(
+    soffice_path: str | Path,
+    to_format: str,
+    out_dir: Path,
+    src: Path,
+    profile_dir: Path | None = None,
+) -> list[str]:
+    """Build headless LibreOffice conversion args with an optional isolated profile."""
+    cmd = [str(soffice_path)]
+    if profile_dir is not None:
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        cmd.append(f"-env:UserInstallation={profile_dir.resolve().as_uri()}")
+    cmd.extend(["--headless", "--convert-to", to_format, "--outdir", str(out_dir), str(src)])
+    return cmd

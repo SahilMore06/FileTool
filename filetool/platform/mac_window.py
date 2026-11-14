@@ -18,11 +18,9 @@ logger = logging.getLogger("filetool.platform.mac_window")
 
 # Native constants
 NS_STATUS_WINDOW_LEVEL = 25  # Floats above normal windows and status items
-NS_FLOATING_WINDOW_LEVEL = 3
 
 # NSWindowCollectionBehavior
 NS_COLLECTION_CAN_JOIN_ALL_SPACES = 1 << 0
-NS_COLLECTION_MOVE_TO_ACTIVE_SPACE = 1 << 1
 NS_COLLECTION_FULL_SCREEN_AUXILIARY = 1 << 8
 
 
@@ -101,8 +99,10 @@ def clamp_window_to_screen(
     desired_x = int(center_x - window_width // 2)
     desired_y = int(center_y - window_height // 2)
 
-    clamped_x = max(geom.left(), min(desired_x, geom.right() - window_width))
-    clamped_y = max(geom.top(), min(desired_y, geom.bottom() - window_height))
+    max_x = geom.x() + max(0, geom.width() - window_width)
+    max_y = geom.y() + max(0, geom.height() - window_height)
+    clamped_x = max(geom.x(), min(desired_x, max_x))
+    clamped_y = max(geom.y(), min(desired_y, max_y))
 
     return (clamped_x, clamped_y)
 

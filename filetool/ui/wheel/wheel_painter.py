@@ -4,17 +4,18 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt
 from PySide6.QtGui import (
     QBrush,
     QColor,
     QFont,
     QFontMetrics,
     QImage,
+    QImageReader,
     QPainter,
     QPainterPath,
     QPen,
@@ -22,7 +23,7 @@ from PySide6.QtGui import (
     QRadialGradient,
 )
 
-from filetool.ui.styles import contrast_ratio, get_tokens
+from filetool.ui.styles import get_tokens
 from filetool.ui.wheel.animations import HOVER_SCALE
 from filetool.ui.wheel.geometry import (
     RING2_INNER_RADIUS,
@@ -83,11 +84,36 @@ _VECTOR_FALLBACK_ALIAS = {
 }
 
 
+_IMAGE_THUMB_EXTS = frozenset({".jpg", ".jpeg", ".png", ".webp", ".heic", ".tiff", ".bmp"})
+_CONTRAST_INK_CACHE: Dict[int, QColor] = {}
+_DARK_INK = QColor(0x20, 0x21, 0x24)
+_WHITE_INK = QColor(255, 255, 255)
+
+
+def _linear_channel(c: float) -> float:
+    return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
+
 def _wcag_contrast_ink(bg: QColor) -> QColor:
     """Pick dark `#202124` or `#FFFFFF` ink with higher WCAG contrast on `bg`."""
-    bg_hex = bg.name()
-    dark_ink = QColor(0x20, 0x21, 0x24)
-    return dark_ink if contrast_ratio("#202124", bg_hex) > contrast_ratio("#FFFFFF", bg_hex) else QColor(255, 255, 255)
+    key = int(bg.rgb())
+    cached = _CONTRAST_INK_CACHE.get(key)
+    if cached is not None:
+        return cached
+    lum = (
+        0.2126 * _linear_channel(bg.redF())
+        + 0.7152 * _linear_channel(bg.greenF())
+        + 0.0722 * _linear_channel(bg.blueF())
+    )
+    # Luminance threshold where contrast against #FFFFFF equals contrast against #202124 (~0.0165)
+    # Compute exact WCAG ratios cleanly without hex string formatting.
+    c_white = 1.05 / (lum + 0.05)
+    c_dark = (lum + 0.05) / (0.015996 + 0.05) if lum >= 0.015996 else (0.015996 + 0.05) / (lum + 0.05)
+    chosen = _DARK_INK if c_dark > c_white else _WHITE_INK
+    if len(_CONTRAST_INK_CACHE) >= 256:
+        _CONTRAST_INK_CACHE.clear()
+    _CONTRAST_INK_CACHE[key] = chosen
+    return chosen
 
 
 def _lerp_color(c1: QColor, c2: QColor, t: float) -> QColor:
@@ -142,6 +168,7 @@ class IconCache:
 
     def __init__(self) -> None:
         self._cache: Dict[Tuple[str, int, int], QPixmap] = {}
+        self._raw_symbol_cache: Dict[Tuple[str, int], Optional[QPixmap]] = {}
         self._appkit_available = False
         self._init_appkit()
 
@@ -166,16 +193,24 @@ class IconCache:
 
     def get_icon(self, name: str, size: int = 24, tint: QColor = QColor(255, 255, 255)) -> QPixmap:
         key = (name.lower(), size, int(tint.rgba()))
-        if key in self._cache:
-            return self._cache[key]
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
 
         symbol_name = SYMBOL_MAP.get(name.lower(), name)
-        raw_pix = self._load_sf_symbol(symbol_name, size)
+        raw_key = (symbol_name, size)
+        if raw_key not in self._raw_symbol_cache:
+            self._raw_symbol_cache[raw_key] = self._load_sf_symbol(symbol_name, size)
+        raw_pix = self._raw_symbol_cache[raw_key]
+
         if raw_pix and not raw_pix.isNull():
             pix = self._tint_pixmap(raw_pix, tint)
         else:
             pix = self._draw_fallback_icon(name, size, tint)
 
+        if len(self._cache) >= 256:
+            # Evict oldest inserted entry cleanly while preserving recent hot icons
+            self._cache.pop(next(iter(self._cache)))
         self._cache[key] = pix
         return pix
 
@@ -240,6 +275,141 @@ class WheelPainter:
 
     def __init__(self) -> None:
         self.icon_cache = IconCache()
+        self._backdrop_cache: Dict[Tuple[bool, float], QPixmap] = {}
+        self._petal_path_cache: Dict[Tuple[int, int, float, float, float, float], QPainterPath] = {}
+        self._annular_path_cache: Dict[Tuple[float, float, float, float, float], QPainterPath] = {}
+        self._petal_pos_cache: Dict[Tuple[int, int], Tuple[float, float]] = {}
+        self._idle_petal_style_cache: Dict[Tuple[bool, float], Tuple[QBrush, QPen, QColor]] = {}
+        self._thumb_cache: Dict[Tuple[str, int, float], Optional[QPixmap]] = {}
+        self._file_icon_cache: Dict[Tuple[int, float], QPixmap] = {}
+        self._elided_text_cache: Dict[Tuple[str, int, str], str] = {}
+
+        self._font_seg_tool = QFont(".AppleSystemUIFont", 8, QFont.Weight.Bold)
+        self._fm_seg_tool = QFontMetrics(self._font_seg_tool)
+        self._font_seg_label = QFont(".AppleSystemUIFont", 11, QFont.Weight.Bold)
+        self._font_sec_label = QFont(".AppleSystemUIFont", 10, QFont.Weight.Bold)
+        self._font_hub_hover = QFont(".AppleSystemUIFont", 9, QFont.Weight.Bold)
+        self._fm_hub_hover = QFontMetrics(self._font_hub_hover)
+        self._font_hub_ext = QFont(".AppleSystemUIFont", 10, QFont.Weight.Bold)
+        self._font_hub_sub = QFont(".AppleSystemUIFont", 7, QFont.Weight.Bold)
+        self._fm_hub_sub = QFontMetrics(self._font_hub_sub)
+
+    @staticmethod
+    def _painter_dpr(painter: QPainter) -> float:
+        dev = painter.device()
+        if dev is None:
+            return 1.0
+        try:
+            dpr = float(dev.devicePixelRatioF())
+            return round(max(1.0, dpr), 2)
+        except Exception:
+            return 1.0
+
+    def preload_thumbnail(self, file_path: Optional[str], dpr: float = 2.0) -> Optional[QPixmap]:
+        """Decode and cache a circular HiDPI hub thumbnail ahead of animation frames."""
+        if not file_path:
+            return None
+        thumb_r = (TANGERINE_INNER_RADIUS - 6.0) - 3.5
+        return self._get_cached_thumb(file_path, thumb_r, round(max(1.0, float(dpr)), 2))
+
+    def _get_cached_thumb(self, file_path: str, thumb_r: float, dpr: float) -> Optional[QPixmap]:
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext not in _IMAGE_THUMB_EXTS:
+            return None
+
+        target_logical = max(16, int(round(2.0 * thumb_r)))
+        key = (file_path, target_logical, dpr)
+        if key in self._thumb_cache:
+            return self._thumb_cache[key]
+
+        pix: Optional[QPixmap] = None
+        if os.path.exists(file_path):
+            target_px = max(32, int(round(target_logical * dpr)))
+            reader = QImageReader(file_path)
+            reader.setAutoTransform(True)
+            orig = reader.size()
+            if orig.isValid() and orig.width() > 0 and orig.height() > 0:
+                scale = max(target_px / float(orig.width()), target_px / float(orig.height()))
+                scaled_w = max(target_px, int(round(orig.width() * scale)))
+                scaled_h = max(target_px, int(round(orig.height() * scale)))
+                reader.setScaledSize(QSize(scaled_w, scaled_h))
+            img = reader.read()
+            if not img.isNull():
+                if img.width() != target_px or img.height() != target_px:
+                    cropped = img.scaled(
+                        target_px,
+                        target_px,
+                        Qt.KeepAspectRatioByExpanding,
+                        Qt.SmoothTransformation,
+                    )
+                    if cropped.width() > target_px or cropped.height() > target_px:
+                        cx_off = (cropped.width() - target_px) // 2
+                        cy_off = (cropped.height() - target_px) // 2
+                        cropped = cropped.copy(cx_off, cy_off, target_px, target_px)
+                else:
+                    cropped = img
+
+                out = QPixmap(target_px, target_px)
+                out.fill(Qt.transparent)
+                p = QPainter(out)
+                if p.isActive():
+                    p.setRenderHint(QPainter.Antialiasing)
+                    p.setRenderHint(QPainter.SmoothPixmapTransform)
+                    clip = QPainterPath()
+                    clip.addEllipse(QRectF(0.0, 0.0, float(target_px), float(target_px)))
+                    p.setClipPath(clip)
+                    p.drawImage(0, 0, cropped)
+                    p.end()
+                out.setDevicePixelRatio(dpr)
+                pix = out
+
+        if len(self._thumb_cache) >= 32:
+            self._thumb_cache.pop(next(iter(self._thumb_cache)))
+        self._thumb_cache[key] = pix
+        return pix
+
+    def _get_cached_file_icon(self, icon_pix: QPixmap, dpr: float) -> QPixmap:
+        cache_key = (int(icon_pix.cacheKey()), dpr)
+        cached = self._file_icon_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        target_px = max(30, int(round(30 * dpr)))
+        scaled = icon_pix.scaled(target_px, target_px, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        scaled.setDevicePixelRatio(dpr)
+        if len(self._file_icon_cache) >= 64:
+            self._file_icon_cache.pop(next(iter(self._file_icon_cache)))
+        self._file_icon_cache[cache_key] = scaled
+        return scaled
+
+    def _cached_tangerine_petal(
+        self, index: int, total: int, r_in: float, r_out: float, corner_r: float = 20.16, gap: float = 4.0
+    ) -> QPainterPath:
+        q_rin = round(r_in, 2)
+        q_rout = round(r_out, 1)
+        key = (index, total, q_rin, q_rout, round(corner_r, 1), round(gap, 1))
+        cached = self._petal_path_cache.get(key)
+        if cached is not None:
+            return cached
+        path = self._build_tangerine_petal(index, total, q_rin, q_rout, corner_r, gap)
+        if len(self._petal_path_cache) >= 512:
+            self._petal_path_cache.clear()
+        self._petal_path_cache[key] = path
+        return path
+
+    def _cached_annular_sector(
+        self, r_in: float, r_out: float, start_deg: float, end_deg: float, gap_deg: float = 2.0
+    ) -> QPainterPath:
+        q_rin = round(r_in, 2)
+        q_rout = round(r_out, 1)
+        key = (q_rin, q_rout, round(start_deg, 2), round(end_deg, 2), round(gap_deg, 2))
+        cached = self._annular_path_cache.get(key)
+        if cached is not None:
+            return cached
+        path = self._build_annular_sector(0, 0, q_rin, q_rout, start_deg, end_deg, gap_deg)
+        if len(self._annular_path_cache) >= 256:
+            self._annular_path_cache.clear()
+        self._annular_path_cache[key] = path
+        return path
 
     def paint(self, painter: QPainter, width: int, height: int, state: WheelState) -> None:
         painter.save()
@@ -268,46 +438,95 @@ class WheelPainter:
         painter.restore()
 
     def _draw_backdrop(self, painter: QPainter, state: WheelState) -> None:
-        """Render ambient shadow halo and frosted backing disc beneath the petals."""
+        """Render cached ambient shadow halo and frosted backing disc beneath the petals."""
+        dpr = self._painter_dpr(painter)
+        cache_key = (bool(state.dark_mode), dpr)
         disc_r = TANGERINE_BACKDROP_RADIUS
-        hole_r = TANGERINE_INNER_RADIUS - 2.0
-
-        # Soft ambient radial drop shadow around the wheel
         halo_r = disc_r + 22.0
-        halo = QRadialGradient(0, 3, halo_r)
-        base_shadow = 72 if state.dark_mode else 34
-        halo.setColorAt(0.0, QColor(0, 0, 0, base_shadow))
-        halo.setColorAt(disc_r / halo_r, QColor(0, 0, 0, int(base_shadow * 0.55)))
-        halo.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.save()
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QBrush(halo))
-        painter.drawEllipse(QPointF(0, 3), halo_r, halo_r)
-        painter.restore()
+        half_logical = int(math.ceil(halo_r + 6.0))
 
-        path = QPainterPath()
-        path.addEllipse(QPointF(0, 0), disc_r, disc_r)
-        hole = QPainterPath()
-        hole.addEllipse(QPointF(0, 0), hole_r, hole_r)
-        glass_ring = path.subtracted(hole)
+        pix = self._backdrop_cache.get(cache_key)
+        if pix is None:
+            size_logical = half_logical * 2
+            px_size = int(round(size_logical * dpr))
+            pix = QPixmap(px_size, px_size)
+            pix.fill(Qt.transparent)
+            pix.setDevicePixelRatio(dpr)
 
-        painter.save()
-        if state.dark_mode:
-            fill = QColor(18, 19, 22, 168)
-            rim = QColor(255, 255, 255, 36)
-        else:
-            fill = QColor(225, 223, 217, 130)
-            rim = QColor(255, 255, 255, 190)
+            p = QPainter(pix)
+            if p.isActive():
+                p.setRenderHint(QPainter.Antialiasing)
+                p.translate(float(half_logical), float(half_logical))
 
-        painter.fillPath(glass_ring, fill)
-        painter.setPen(QPen(rim, 1.0))
-        painter.drawPath(glass_ring)
-        painter.restore()
+                halo = QRadialGradient(0, 3, halo_r)
+                base_shadow = 72 if state.dark_mode else 34
+                halo.setColorAt(0.0, QColor(0, 0, 0, base_shadow))
+                halo.setColorAt(disc_r / halo_r, QColor(0, 0, 0, int(base_shadow * 0.55)))
+                halo.setColorAt(1.0, QColor(0, 0, 0, 0))
+                p.setPen(Qt.NoPen)
+                p.setBrush(QBrush(halo))
+                p.drawEllipse(QPointF(0, 3), halo_r, halo_r)
+
+                hole_r = TANGERINE_INNER_RADIUS - 2.0
+                path = QPainterPath()
+                path.addEllipse(QPointF(0, 0), disc_r, disc_r)
+                hole = QPainterPath()
+                hole.addEllipse(QPointF(0, 0), hole_r, hole_r)
+                glass_ring = path.subtracted(hole)
+
+                if state.dark_mode:
+                    fill = QColor(18, 19, 22, 168)
+                    rim = QColor(255, 255, 255, 36)
+                else:
+                    fill = QColor(225, 223, 217, 130)
+                    rim = QColor(255, 255, 255, 190)
+
+                p.fillPath(glass_ring, fill)
+                p.setPen(QPen(rim, 1.0))
+                p.drawPath(glass_ring)
+                p.end()
+
+            if len(self._backdrop_cache) >= 8:
+                self._backdrop_cache.clear()
+            self._backdrop_cache[cache_key] = pix
+
+        painter.drawPixmap(QPointF(-half_logical, -half_logical), pix)
 
     def _petal_colors(self, state: WheelState, is_hovered: bool, r_out: float):
+        hover_t = state.hover_progress if is_hovered else 0.0
+        q_rout = round(r_out, 1)
+
+        if hover_t <= 0.01:
+            idle_key = (bool(state.dark_mode), q_rout)
+            cached_idle = self._idle_petal_style_cache.get(idle_key)
+            if cached_idle is not None:
+                return cached_idle
+
+            if state.dark_mode:
+                idle_inner = QColor(0x2A, 0x2C, 0x31, 244)
+                idle_mid = QColor(0x21, 0x23, 0x27, 238)
+                idle_outer = QColor(0x19, 0x1B, 0x1E, 246)
+                idle_border = QColor(255, 255, 255, 34)
+                idle_ink = QColor(0xED, 0xEC, 0xE8)
+            else:
+                idle_inner = QColor(0xFF, 0xFE, 0xFC, 248)
+                idle_mid = QColor(0xF6, 0xF4, 0xEF, 240)
+                idle_outer = QColor(0xEC, 0xEA, 0xE4, 246)
+                idle_border = QColor(0xD8, 0xD5, 0xCE, 225)
+                idle_ink = QColor(0x20, 0x21, 0x24)
+
+            grad = QRadialGradient(0, 0, q_rout)
+            grad.setColorAt(0.0, idle_inner)
+            grad.setColorAt(0.7, idle_mid)
+            grad.setColorAt(1.0, idle_outer)
+            style = (QBrush(grad), QPen(idle_border, 0.9), idle_ink)
+            if len(self._idle_petal_style_cache) >= 32:
+                self._idle_petal_style_cache.clear()
+            self._idle_petal_style_cache[idle_key] = style
+            return style
+
         accent = QColor(state.accent_color)
         accent_dark = QColor(state.accent_hover)
-        hover_t = state.hover_progress if is_hovered else 0.0
 
         if state.dark_mode:
             idle_inner = QColor(0x2A, 0x2C, 0x31, 244)
@@ -322,29 +541,22 @@ class WheelPainter:
             idle_border = QColor(0xD8, 0xD5, 0xCE, 225)
             idle_ink = QColor(0x20, 0x21, 0x24)
 
-        if hover_t > 0.01:
-            act_top = accent.lighter(116)
-            act_bot = accent_dark
-            act_border = accent.lighter(142)
+        act_top = accent.lighter(116)
+        act_bot = accent_dark
+        act_border = accent.lighter(142)
 
-            c_inner = _lerp_color(idle_inner, act_top, hover_t)
-            c_mid = _lerp_color(idle_mid, accent, hover_t)
-            c_outer = _lerp_color(idle_outer, act_bot, hover_t)
-            border_c = _lerp_color(idle_border, act_border, hover_t)
-            target_ink = _wcag_contrast_ink(accent)
-            ink_c = _lerp_color(idle_ink, target_ink, hover_t)
+        c_inner = _lerp_color(idle_inner, act_top, hover_t)
+        c_mid = _lerp_color(idle_mid, accent, hover_t)
+        c_outer = _lerp_color(idle_outer, act_bot, hover_t)
+        border_c = _lerp_color(idle_border, act_border, hover_t)
+        target_ink = _wcag_contrast_ink(accent)
+        ink_c = _lerp_color(idle_ink, target_ink, hover_t)
 
-            grad = QRadialGradient(0, 0, r_out)
-            grad.setColorAt(0.0, c_inner)
-            grad.setColorAt(0.65, c_mid)
-            grad.setColorAt(1.0, c_outer)
-            return QBrush(grad), QPen(border_c, 1.0 + 0.35 * hover_t), ink_c
-
-        grad = QRadialGradient(0, 0, r_out)
-        grad.setColorAt(0.0, idle_inner)
-        grad.setColorAt(0.7, idle_mid)
-        grad.setColorAt(1.0, idle_outer)
-        return QBrush(grad), QPen(idle_border, 0.9), idle_ink
+        grad = QRadialGradient(0, 0, q_rout)
+        grad.setColorAt(0.0, c_inner)
+        grad.setColorAt(0.65, c_mid)
+        grad.setColorAt(1.0, c_outer)
+        return QBrush(grad), QPen(border_c, 1.0 + 0.35 * hover_t), ink_c
 
     def _draw_segments(self, painter: QPainter, state: WheelState) -> None:
         segs = state.primary_segments
@@ -373,25 +585,31 @@ class WheelPainter:
                 scale_delta = (HOVER_SCALE - 1.0) * state.hover_progress
                 r_out += (r_out - r_in) * scale_delta
 
-            path = self._build_tangerine_petal(i, n, r_in, r_out, TANGERINE_CORNER_RADIUS, TANGERINE_GAP)
+            path = self._cached_tangerine_petal(i, n, r_in, r_out, TANGERINE_CORNER_RADIUS, TANGERINE_GAP)
 
             if state.drop_state == "flash" and is_hovered:
                 flash_alpha = int(245 * (1.0 - state.drop_progress))
                 fill_brush = QBrush(QColor(255, 255, 255, max(165, flash_alpha)))
                 border_pen = QPen(QColor(state.accent_color), 1.6)
-                ink_color = QColor(0x20, 0x21, 0x24)
+                ink_color = _DARK_INK
             else:
                 fill_brush, border_pen, ink_color = self._petal_colors(state, is_hovered, r_out)
 
-            painter.save()
-            painter.setOpacity(stagger)
-            painter.fillPath(path, fill_brush)
-            painter.setPen(border_pen)
-            painter.drawPath(path)
-
-            if collapse_factor < 0.7:
-                self._draw_segment_content(painter, seg, ink_color, n)
-            painter.restore()
+            if stagger < 0.999:
+                painter.save()
+                painter.setOpacity(painter.opacity() * stagger)
+                painter.fillPath(path, fill_brush)
+                painter.setPen(border_pen)
+                painter.drawPath(path)
+                if collapse_factor < 0.7:
+                    self._draw_segment_content(painter, seg, ink_color, n)
+                painter.restore()
+            else:
+                painter.fillPath(path, fill_brush)
+                painter.setPen(border_pen)
+                painter.drawPath(path)
+                if collapse_factor < 0.7:
+                    self._draw_segment_content(painter, seg, ink_color, n)
 
     def _draw_secondary_ring(self, painter: QPainter, state: WheelState) -> None:
         if not state.secondary_segments:
@@ -407,8 +625,8 @@ class WheelPainter:
                 scale_delta = (HOVER_SCALE - 1.0) * state.hover_progress
                 r_out += (r_out - r_in) * scale_delta
 
-            path = self._build_annular_sector(
-                0, 0, r_in, r_out, seg.start_angle, seg.end_angle, SEGMENT_GAP_DEG
+            path = self._cached_annular_sector(
+                r_in, r_out, seg.start_angle, seg.end_angle, SEGMENT_GAP_DEG
             )
 
             fill_brush, border_pen, ink_color = self._petal_colors(state, is_hovered, r_out)
@@ -423,14 +641,19 @@ class WheelPainter:
     ) -> None:
         if seg.ring == 2:
             cx, cy = seg.centroid
-            font = QFont(".AppleSystemUIFont", 10, QFont.Weight.Bold)
-            painter.setFont(font)
+            painter.setFont(self._font_sec_label)
             painter.setPen(ink_color)
             label_rect = QRectF(cx - 34, cy - 10, 68, 20)
             painter.drawText(label_rect, Qt.AlignCenter, seg.label.upper())
             return
 
-        cx, cy = tangerine_petal_pos(seg.index, total_items)
+        pos_key = (seg.index, total_items)
+        pos = self._petal_pos_cache.get(pos_key)
+        if pos is None:
+            pos = tangerine_petal_pos(seg.index, total_items)
+            self._petal_pos_cache[pos_key] = pos
+        cx, cy = pos
+
         is_tool = seg.action_type in ("tool", "action", "more") or (
             seg.icon_name and seg.icon_name != seg.label.lower()
         )
@@ -446,15 +669,19 @@ class WheelPainter:
                 iy = cy - logical_h - 1.0
                 painter.drawPixmap(QPointF(ix, iy), pix)
 
-            font = QFont(".AppleSystemUIFont", 8, QFont.Weight.Bold)
-            painter.setFont(font)
+            painter.setFont(self._font_seg_tool)
             painter.setPen(ink_color)
             label_rect = QRectF(cx - 38, cy + 3.0, 76, 14)
-            elided = QFontMetrics(font).elidedText(seg.label.upper(), Qt.ElideRight, 72)
+            elide_key = ("seg_tool", 72, seg.label)
+            elided = self._elided_text_cache.get(elide_key)
+            if elided is None:
+                elided = self._fm_seg_tool.elidedText(seg.label.upper(), Qt.ElideRight, 72)
+                if len(self._elided_text_cache) >= 128:
+                    self._elided_text_cache.clear()
+                self._elided_text_cache[elide_key] = elided
             painter.drawText(label_rect, Qt.AlignCenter, elided)
         else:
-            font = QFont(".AppleSystemUIFont", 11, QFont.Weight.Bold)
-            painter.setFont(font)
+            painter.setFont(self._font_seg_label)
             painter.setPen(ink_color)
             label_rect = QRectF(cx - 38, cy - 10.0, 76, 20)
             painter.drawText(label_rect, Qt.AlignCenter, seg.label.upper())
@@ -499,42 +726,29 @@ class WheelPainter:
         painter.setBrush(hub_bg)
         painter.drawEllipse(hub_rect)
 
+        dpr = self._painter_dpr(painter)
         drawn_thumb = False
-        if state.file_path and Path(state.file_path).exists():
-            ext = Path(state.file_path).suffix.lower()
-            if ext in (".jpg", ".jpeg", ".png", ".webp", ".heic", ".tiff", ".bmp"):
-                img = QImage(state.file_path)
-                if not img.isNull():
-                    thumb_r = hub_r - 3.5
-                    clip_p = QPainterPath()
-                    clip_p.addEllipse(QRectF(-thumb_r, -thumb_r, 2 * thumb_r, 2 * thumb_r))
-                    painter.save()
-                    painter.setClipPath(clip_p)
-                    scaled = img.scaled(
-                        int(2 * thumb_r),
-                        int(2 * thumb_r),
-                        Qt.KeepAspectRatioByExpanding,
-                        Qt.SmoothTransformation,
-                    )
-                    painter.drawImage(int(-thumb_r), int(-thumb_r), scaled)
-                    painter.restore()
-                    drawn_thumb = True
+        if state.file_path:
+            thumb_r = hub_r - 3.5
+            thumb_pix = self._get_cached_thumb(state.file_path, thumb_r, dpr)
+            if thumb_pix is not None and not thumb_pix.isNull():
+                painter.drawPixmap(QPointF(-thumb_r, -thumb_r), thumb_pix)
+                drawn_thumb = True
 
         if not drawn_thumb and state.file_icon and not state.file_icon.isNull():
-            scaled = state.file_icon.scaled(30, 30, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            painter.drawPixmap(int(-scaled.width() / 2.0), int(-scaled.height() / 2.0 - 4.0), scaled)
+            scaled = self._get_cached_file_icon(state.file_icon, dpr)
+            lw = scaled.width() / max(1.0, scaled.devicePixelRatio())
+            lh = scaled.height() / max(1.0, scaled.devicePixelRatio())
+            painter.drawPixmap(QPointF(-lw / 2.0, -lh / 2.0 - 4.0), scaled)
             drawn_thumb = True
 
         painter.restore()
 
         # Center overlay badge (hovered petal readout, count pill, or wheel mode hint)
-
         if hover_seg:
             label = hover_seg.label.upper()
-            font = QFont(".AppleSystemUIFont", 9, QFont.Weight.Bold)
-            fm = QFontMetrics(font)
             max_w = hub_r * 2.25
-            pill_w = max(68.0, min(max_w, fm.horizontalAdvance(label) + 22.0))
+            pill_w = max(68.0, min(max_w, self._fm_hub_hover.horizontalAdvance(label) + 22.0))
             pill_h = 24.0
             pill_rect = QRectF(-pill_w / 2.0, -pill_h / 2.0, pill_w, pill_h)
             pill_path = QPainterPath()
@@ -542,28 +756,26 @@ class WheelPainter:
             painter.fillPath(pill_path, QColor(0x18, 0x19, 0x1D, 238))
             painter.setPen(QPen(accent, 1.25))
             painter.drawPath(pill_path)
-            painter.setFont(font)
-            painter.setPen(QColor(255, 255, 255))
-            elided = fm.elidedText(label, Qt.ElideRight, int(pill_w - 14))
+            painter.setFont(self._font_hub_hover)
+            painter.setPen(_WHITE_INK)
+            elided = self._fm_hub_hover.elidedText(label, Qt.ElideRight, int(pill_w - 14))
             painter.drawText(pill_rect, Qt.AlignCenter, elided)
             return
 
         if not drawn_thumb:
-            ext = Path(state.file_name).suffix.upper().lstrip(".") or "FILE"
-            painter.setFont(QFont(".AppleSystemUIFont", 10, QFont.Weight.Bold))
+            ext = os.path.splitext(state.file_name)[1].upper().lstrip(".") or "FILE"
+            painter.setFont(self._font_hub_ext)
             painter.setPen(QColor(0xEC, 0xEA, 0xE4))
             painter.drawText(QRectF(-hub_r + 6, -15, 2 * hub_r - 12, 20), Qt.AlignCenter, ext[:6])
 
         # Quiet mode or multi-file badge tucked cleanly inside lower half of hub
         footer_text = f"{state.file_count} FILES" if state.file_count > 1 else state.wheel_type.upper()
-        sub_font = QFont(".AppleSystemUIFont", 7, QFont.Weight.Bold)
-        sub_fm = QFontMetrics(sub_font)
-        sub_w = min(hub_r * 1.65, sub_fm.horizontalAdvance(footer_text) + 12.0)
+        sub_w = min(hub_r * 1.65, self._fm_hub_sub.horizontalAdvance(footer_text) + 12.0)
         sub_rect = QRectF(-sub_w / 2.0, hub_r - 17.5, sub_w, 13.0)
         sub_path = QPainterPath()
         sub_path.addRoundedRect(sub_rect, 6.5, 6.5)
         painter.fillPath(sub_path, QColor(0x12, 0x13, 0x16, 210))
-        painter.setFont(sub_font)
+        painter.setFont(self._font_hub_sub)
         painter.setPen(QColor(0xB8, 0xB5, 0xAE))
         painter.drawText(sub_rect, Qt.AlignCenter, footer_text)
 
@@ -591,7 +803,11 @@ class WheelPainter:
         painter.setPen(QPen(QColor(state.accent_color), 4.0, Qt.SolidLine, Qt.RoundCap))
         painter.drawArc(track_rect, 90 * 16, sweep)
 
-        painter.setFont(QFont(".AppleSystemUIFont", 12, QFont.Weight.Bold))
+        font_prog = getattr(self, "_font_progress", None)
+        if font_prog is None:
+            font_prog = QFont(".AppleSystemUIFont", 12, QFont.Weight.Bold)
+            self._font_progress = font_prog
+        painter.setFont(font_prog)
         painter.setPen(QColor(0xEC, 0xEA, 0xE4) if state.dark_mode else QColor(0x20, 0x21, 0x24))
         painter.drawText(QRectF(-35, -12, 70, 24), Qt.AlignCenter, f"{pct}%")
 

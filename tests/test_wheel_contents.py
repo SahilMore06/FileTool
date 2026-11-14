@@ -263,3 +263,87 @@ def test_wheel_window_paint_event_all_presets(wheel_window, qapp, samples_dir: P
         if wheel_window._open_anim:
             wheel_window._open_anim.stop()
         wheel_window.hide()
+
+
+def test_wheel_stays_open_in_sticky_mode_on_hub_release(wheel_window, qapp, samples_dir: Path):
+    """Releasing at the center hub before picking a petal keeps the wheel open cleanly."""
+    img = samples_dir / "sample.png"
+    sticky_signals = []
+    wheel_window.sticky_entered.connect(lambda: sticky_signals.append(True))
+
+    wheel_window.show_wheel("convert", 300.0, 300.0, [str(img)])
+    try:
+        if wheel_window._open_anim:
+            wheel_window._open_anim.stop()
+            wheel_window.open_scale = 1.0
+            wheel_window.open_opacity = 1.0
+            wheel_window.segment_stagger = [1.0] * len(wheel_window.primary_segments)
+
+        # Center coordinates of the wheel window
+        cx = wheel_window.x() + wheel_window.width() / 2.0
+        cy = wheel_window.y() + wheel_window.height() / 2.0
+
+        # Dropping at hub right after trigger keeps wheel open instead of canceling
+        wheel_window.trigger_drop_at(cx, cy)
+        qapp.processEvents()
+        assert wheel_window.isVisible()
+        assert wheel_window._sticky_mode is True
+        assert len(sticky_signals) == 1
+
+        # Immediate duplicate drop signal within 150ms deduplication window is ignored
+        wheel_window.trigger_drop_at(cx, cy)
+        qapp.processEvents()
+        assert wheel_window.isVisible()
+
+        # Once past debounce window, clicking center hub closes the sticky wheel
+        wheel_window._ignore_drop_until = 0.0
+        wheel_window.trigger_drop_at(cx, cy)
+        if wheel_window._cancel_anim:
+            wheel_window._cancel_anim.setCurrentTime(wheel_window._cancel_anim.duration())
+        qapp.processEvents()
+        assert not wheel_window.isVisible()
+    finally:
+        if wheel_window._cancel_anim:
+            wheel_window._cancel_anim.stop()
+        wheel_window.hide()
+
+
+def test_wheel_painter_caches_backdrop_paths_and_thumbnails(samples_dir: Path):
+    """WheelPainter caches backdrop pixmap, petal paths, and circular image thumbnails."""
+    from PySide6.QtGui import QPainter, QPixmap
+    from filetool.ui.wheel.geometry import layout_segments
+    from filetool.ui.wheel.wheel_painter import WheelPainter, WheelState
+
+    painter_engine = WheelPainter()
+    img = samples_dir / "sample.png"
+    segs = layout_segments(
+        [{"label": ext.upper(), "icon": ext, "action_type": "convert", "action_data": ext} for ext in ("jpg", "webp", "pdf", "png")],
+        ring=1,
+    )
+    canvas = QPixmap(520, 520)
+    state = WheelState(
+        wheel_type="convert",
+        primary_segments=segs,
+        hovered_index=0,
+        hovered_ring=1,
+        hover_progress=0.5,
+        dark_mode=False,
+        file_path=str(img),
+        file_name="sample.png",
+    )
+
+    qp = QPainter(canvas)
+    painter_engine.paint(qp, 520, 520, state)
+    qp.end()
+
+    assert len(painter_engine._backdrop_cache) == 1
+    assert len(painter_engine._petal_path_cache) == len(segs)
+    assert len(painter_engine._thumb_cache) == 1
+
+    # Repaint with same geometry/thumbnail: caches stay warm with zero new allocations
+    qp2 = QPainter(canvas)
+    painter_engine.paint(qp2, 520, 520, state)
+    qp2.end()
+    assert len(painter_engine._backdrop_cache) == 1
+    assert len(painter_engine._petal_path_cache) == len(segs)
+    assert len(painter_engine._thumb_cache) == 1

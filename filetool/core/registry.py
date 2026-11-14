@@ -44,6 +44,16 @@ class Converter:
         return True
 
 
+_IMAGE_EXTS = frozenset({"jpg", "jpeg", "png", "webp", "heic", "tiff", "tif", "avif", "bmp", "svg"})
+_AUDIO_EXTS = frozenset({"mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff", "aif", "wma"})
+_VIDEO_EXTS = frozenset({"mp4", "mov", "mkv", "webm", "avi", "wmv", "gif"})
+_DOC_EXTS = frozenset({"docx", "md", "markdown", "txt", "epub", "html", "htm", "rtf", "pdf"})
+_SLIDE_EXTS = frozenset({"ppt", "pptx"})
+_SHEET_EXTS = frozenset({"xlsx", "xls", "ods", "csv", "tsv"})
+_SUB_EXTS = frozenset({"srt", "vtt"})
+_ARCH_EXTS = frozenset({"zip", "tar", "gz", "tgz", "rar"})
+
+
 class ConverterRegistry:
     """Central registry of all file conversion engines."""
 
@@ -51,6 +61,8 @@ class ConverterRegistry:
         self._converters: List[Converter] = []
         # Fast lookup map: (normalized_in_ext, normalized_out_ext) -> Converter
         self._lookup: Dict[Tuple[str, str], Converter] = {}
+        # Indexed output map: normalized_in_ext -> {normalized_out_ext: Converter}
+        self._by_input: Dict[str, Dict[str, Converter]] = {}
         # Extension to category mapping
         self._ext_to_category: Dict[str, str] = {}
 
@@ -69,6 +81,7 @@ class ConverterRegistry:
                     converter.id,
                 )
             self._lookup[key] = converter
+            self._by_input.setdefault(norm_in, {})[out_ext] = converter
             if norm_in not in self._ext_to_category:
                 self._ext_to_category[norm_in] = converter.category
 
@@ -84,12 +97,12 @@ class ConverterRegistry:
         If available_only=True, filters out converters missing required tools.
         """
         norm_in = in_ext.lower().lstrip(".")
-        outputs = set()
-        for (src, dest), conv in self._lookup.items():
-            if src == norm_in:
-                if not available_only or conv.is_available():
-                    outputs.add(dest)
-        return sorted(outputs)
+        dest_map = self._by_input.get(norm_in)
+        if not dest_map:
+            return []
+        if not available_only:
+            return sorted(dest_map.keys())
+        return sorted(dest for dest, conv in dest_map.items() if conv.is_available())
 
     def is_supported(self, in_ext: str, out_ext: str) -> bool:
         """Check if conversion between format pair is supported."""
@@ -98,34 +111,25 @@ class ConverterRegistry:
     def get_category_for_ext(self, ext: str) -> str:
         """Return detected category name (Images, Audio, Video, Documents, etc.)."""
         norm = ext.lower().lstrip(".")
-        if norm in self._ext_to_category:
-            return self._ext_to_category[norm]
+        cached_cat = self._ext_to_category.get(norm)
+        if cached_cat is not None:
+            return cached_cat
 
-        # Common defaults
-        image_exts = {"jpg", "jpeg", "png", "webp", "heic", "tiff", "tif", "avif", "bmp", "svg"}
-        audio_exts = {"mp3", "m4a", "wav", "flac", "ogg", "opus", "aiff", "aif", "wma"}
-        video_exts = {"mp4", "mov", "mkv", "webm", "avi", "wmv", "gif"}
-        doc_exts = {"docx", "md", "markdown", "txt", "epub", "html", "htm", "rtf", "pdf"}
-        slide_exts = {"ppt", "pptx"}
-        sheet_exts = {"xlsx", "xls", "ods", "csv", "tsv"}
-        sub_exts = {"srt", "vtt"}
-        arch_exts = {"zip", "tar", "gz", "tgz", "rar"}
-
-        if norm in image_exts:
+        if norm in _IMAGE_EXTS:
             return "Images"
-        if norm in audio_exts:
+        if norm in _AUDIO_EXTS:
             return "Audio"
-        if norm in video_exts:
+        if norm in _VIDEO_EXTS:
             return "Video"
-        if norm in slide_exts:
+        if norm in _SLIDE_EXTS:
             return "Slides"
-        if norm in sheet_exts:
+        if norm in _SHEET_EXTS:
             return "Spreadsheets"
-        if norm in sub_exts:
+        if norm in _SUB_EXTS:
             return "Subtitles"
-        if norm in arch_exts:
+        if norm in _ARCH_EXTS:
             return "Archives"
-        if norm in doc_exts:
+        if norm in _DOC_EXTS:
             return "Documents"
         return "Other"
 

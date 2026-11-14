@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Optional
 
-from PySide6.QtCore import QSettings, Qt, Signal
+from PySide6.QtCore import QObject, QRunnable, QSettings, Qt, QThreadPool, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -28,6 +28,24 @@ from filetool.ui.styles import ACCENT_PRESETS, get_tokens
 MODIFIER_KEYS = ["Shift", "Command", "Control", "Option"]
 
 
+class _DepProbeSignals(QObject):
+    finished = Signal(int, object)
+
+
+class _DepProbeTask(QRunnable):
+    """Run parallel tool version probes off the Qt UI thread."""
+
+    def __init__(self, seq: int, signals: _DepProbeSignals):
+        super().__init__()
+        self.seq = seq
+        self.signals = signals
+
+    def run(self) -> None:
+        resolver.clear_cache()
+        results = check_dependencies()
+        self.signals.finished.emit(self.seq, results)
+
+
 class SettingsPage(QScrollArea):
     """Persistent preferences view synced directly with QSettings."""
 
@@ -48,6 +66,9 @@ class SettingsPage(QScrollArea):
         self._switches: list[IOSSwitch] = []
         self._swatch_btns: Dict[str, QPushButton] = {}
         self._dep_rows: Dict[str, QLabel] = {}
+        self._probe_seq = 0
+        self._probe_signals = _DepProbeSignals()
+        self._probe_signals.finished.connect(self._on_probe_finished)
         self._init_ui()
         self.refresh_dependency_status(run_version_probe=False)
 
@@ -371,7 +392,10 @@ class SettingsPage(QScrollArea):
             self._persist_and_emit()
 
     def _on_login_toggled(self, enabled: bool) -> None:
-        set_launch_at_login(enabled)
+        if not set_launch_at_login(enabled):
+            self.sw_login.blockSignals(True)
+            self.sw_login.setChecked(is_launch_at_login_enabled())
+            self.sw_login.blockSignals(False)
 
     def validate(self) -> list[str]:
         """Validate trigger uniqueness and custom output folder state inline."""
@@ -475,21 +499,40 @@ class SettingsPage(QScrollArea):
 
     def refresh_dependency_status(self, run_version_probe: bool = False) -> None:
         if run_version_probe:
-            results = check_dependencies()
-            for name, status in results.items():
-                if name in self._dep_rows:
-                    badge = self._dep_rows[name]
-                    badge.setText("Installed" if status.available else status.install_command)
-                    badge.setObjectName("badgeSuccess" if status.available else "badgeError")
+            self._probe_seq += 1
+            seq = self._probe_seq
+            self.rescan_btn.setEnabled(False)
+            self.rescan_btn.setText("Checking Tools…")
+            for badge in self._dep_rows.values():
+                badge.setText("Checking…")
+                if badge.objectName() != "pillTag":
+                    badge.setObjectName("pillTag")
                     self._repolish(badge)
+            QThreadPool.globalInstance().start(_DepProbeTask(seq, self._probe_signals))
             return
 
         for name, meta in TOOLS_METADATA.items():
             resolved = resolver.resolve(name)
             badge = self._dep_rows[name]
             badge.setText("Available" if resolved else meta.install_command)
-            badge.setObjectName("badgeSuccess" if resolved else "pillTag")
-            self._repolish(badge)
+            new_name = "badgeSuccess" if resolved else "pillTag"
+            if badge.objectName() != new_name:
+                badge.setObjectName(new_name)
+                self._repolish(badge)
+
+    def _on_probe_finished(self, seq: int, results: object) -> None:
+        if seq != self._probe_seq or not isinstance(results, dict):
+            return
+        for name, status in results.items():
+            if name in self._dep_rows:
+                badge = self._dep_rows[name]
+                badge.setText("Installed" if status.available else status.install_command)
+                new_name = "badgeSuccess" if status.available else "badgeError"
+                if badge.objectName() != new_name:
+                    badge.setObjectName(new_name)
+                    self._repolish(badge)
+        self.rescan_btn.setEnabled(True)
+        self.rescan_btn.setText("Verify Installed Tools")
 
     def refresh_legal_status(self) -> None:
         accepted = bool(self.qsettings.value("legal_accepted", False, type=bool))

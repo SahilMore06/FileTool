@@ -6,6 +6,8 @@ import logging
 import os
 import shutil
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -124,14 +126,22 @@ class ToolResolver:
     def __init__(self, search_paths: list[Path] | None = None):
         self.search_paths = list(search_paths) if search_paths else list(DEFAULT_SEARCH_PATHS)
         self._cache: dict[str, Optional[Path]] = {}
+        self._cache_lock = threading.Lock()
+
+    def clear_cache(self) -> None:
+        """Clear resolved binary path cache before an explicit rescan."""
+        with self._cache_lock:
+            self._cache.clear()
 
     def resolve(self, tool_name: str) -> Optional[Path]:
         """Find the executable path for the given tool name or its aliases."""
-        if tool_name in self._cache:
-            return self._cache[tool_name]
+        with self._cache_lock:
+            if tool_name in self._cache:
+                return self._cache[tool_name]
 
         defn = TOOLS_METADATA.get(tool_name)
         candidate_names = defn.aliases if defn else (tool_name,)
+        resolved: Optional[Path] = None
 
         # Check configured search directories first
         for search_dir in self.search_paths:
@@ -140,19 +150,22 @@ class ToolResolver:
             for name in candidate_names:
                 candidate = search_dir / name
                 if candidate.is_file() and os.access(candidate, os.X_OK):
-                    self._cache[tool_name] = candidate
-                    return candidate
+                    resolved = candidate
+                    break
+            if resolved is not None:
+                break
 
         # Fallback to standard system PATH
-        for name in candidate_names:
-            found = shutil.which(name)
-            if found:
-                p = Path(found)
-                self._cache[tool_name] = p
-                return p
+        if resolved is None:
+            for name in candidate_names:
+                found = shutil.which(name)
+                if found:
+                    resolved = Path(found)
+                    break
 
-        self._cache[tool_name] = None
-        return None
+        with self._cache_lock:
+            self._cache[tool_name] = resolved
+        return resolved
 
     def get_tool_path(self, tool_name: str) -> str:
         """Return the resolved string path or raise FileNotFoundError with installation hint."""
@@ -204,8 +217,12 @@ class ToolResolver:
         )
 
     def check_all(self) -> dict[str, ToolStatus]:
-        """Check all defined tools."""
-        return {name: self.check_tool(name) for name in TOOLS_METADATA}
+        """Check all defined tools concurrently while preserving metadata order."""
+        names = list(TOOLS_METADATA.keys())
+        max_workers = min(8, max(1, len(names)))
+        with ThreadPoolExecutor(max_workers=max_workers) as pool:
+            statuses = list(pool.map(self.check_tool, names))
+        return dict(zip(names, statuses))
 
 
 # Global singleton instance

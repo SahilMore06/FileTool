@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
+
+if TYPE_CHECKING:
+    from filetool.ui.onboarding import OnboardingWindow
 
 from PySide6.QtCore import QSettings, Qt, QTimer, Signal
-from PySide6.QtGui import QDragEnterEvent, QDropEvent
+from PySide6.QtGui import QDragEnterEvent, QDropEvent, QGuiApplication
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -15,7 +18,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QMessageBox,
     QPushButton,
     QStackedWidget,
     QStatusBar,
@@ -35,7 +37,6 @@ from filetool.ui.components import (
 from filetool.ui.dropzone import DropZone
 from filetool.ui.history_panel import HistoryPanel
 from filetool.ui.job_list import JobListWidget
-from filetool.ui.onboarding import OnboardingWindow
 from filetool.ui.options_panel import OptionsPanel
 from filetool.ui.settings_page import SettingsPage
 from filetool.ui.styles import ACCENT_PRESETS, get_stylesheet
@@ -59,6 +60,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(720, 480)
         self.setAcceptDrops(True)
         self._was_running = False
+        self._last_indicator_sig: Optional[tuple] = None
         self._done_reset_timer = QTimer(self)
         self._done_reset_timer.setSingleShot(True)
         self._done_reset_timer.timeout.connect(self._reset_brand_pill)
@@ -245,10 +247,8 @@ class MainWindow(QMainWindow):
             lambda: self.open_onboarding(first_boot=False, initial_step=2, initial_legal_doc="terms")
         )
 
-        self.runner.signals.started.connect(lambda _jid: self._refresh_queue_indicators())
         self.runner.signals.completed.connect(self._on_job_completed)
         self.runner.signals.failed.connect(self._on_job_failed)
-        self.runner.signals.cancelled.connect(lambda _jid: self._refresh_queue_indicators())
         self.runner.job_updated.connect(self.job_list.update_job_row)
         self.runner.job_updated.connect(lambda _jid: self._refresh_queue_indicators())
 
@@ -277,6 +277,7 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(get_stylesheet(self.dark_mode, accent_key=self.accent_key))
         self.setWindowIcon(create_brand_icon(accent_hex))
         self.logo.set_accent_color(accent_hex)
+        self.dropzone.set_accent_color(accent_hex)
         self.theme_toggle.set_dark(self.dark_mode)
         self.job_list.set_dark_mode(self.dark_mode)
         self.settings_page.set_theme(self.dark_mode, self.accent_key)
@@ -296,22 +297,28 @@ class MainWindow(QMainWindow):
         if not paths:
             return
         added_count = 0
-        for path in paths:
-            if not path.exists() or not path.is_file():
-                continue
-            in_ext = path.suffix.lower().lstrip(".")
-            outputs = registry.list_outputs(in_ext)
-            dest_ext = outputs[0] if outputs else ""
-            job = ConversionJob(
-                src_path=path,
-                dest_ext=dest_ext,
-                target_dir=self.custom_output_dir,
-                overwrite=self.overwrite_files,
-                delete_original=self.delete_original,
-            )
-            self.runner.add_job(job)
-            self.job_list.add_job_row(job)
-            added_count += 1
+        ext_default_cache: dict[str, str] = {}
+        self.job_list.container.setUpdatesEnabled(False)
+        try:
+            for path in paths:
+                if not path.exists() or not path.is_file():
+                    continue
+                in_ext = path.suffix.lower().lstrip(".")
+                if in_ext not in ext_default_cache:
+                    outputs = registry.list_outputs(in_ext)
+                    ext_default_cache[in_ext] = outputs[0] if outputs else ""
+                job = ConversionJob(
+                    src_path=path,
+                    dest_ext=ext_default_cache[in_ext],
+                    target_dir=self.custom_output_dir,
+                    overwrite=self.overwrite_files,
+                    delete_original=self.delete_original,
+                )
+                self.runner.add_job(job)
+                self.job_list.add_job_row(job)
+                added_count += 1
+        finally:
+            self.job_list.container.setUpdatesEnabled(True)
 
         if added_count:
             self.stack.setCurrentIndex(1)
@@ -347,6 +354,7 @@ class MainWindow(QMainWindow):
             self.status_bar.showMessage(f"Failed ({job.filename}): {msg}", 5000)
 
     def _on_remove_job(self, job_id: str) -> None:
+        self.runner.cancel_job(job_id)
         self.runner.jobs.pop(job_id, None)
         self.job_list.remove_job_row(job_id)
         if not self.runner.jobs:
@@ -360,8 +368,20 @@ class MainWindow(QMainWindow):
             for jid, j in self.runner.jobs.items()
             if j.status in (JobStatus.SUCCESS, JobStatus.CANCELLED)
         ]
-        for jid in done:
-            self._on_remove_job(jid)
+        if not done:
+            return
+        self.job_list.container.setUpdatesEnabled(False)
+        try:
+            for jid in done:
+                self.runner.jobs.pop(jid, None)
+                self.job_list.remove_job_row(jid)
+        finally:
+            self.job_list.container.setUpdatesEnabled(True)
+
+        if not self.runner.jobs:
+            self.stack.setCurrentIndex(0)
+        self._update_bulk_combo_formats()
+        self._refresh_queue_indicators()
 
     def _start_all_jobs(self) -> None:
         opts = self.options_panel.get_options()
@@ -393,6 +413,12 @@ class MainWindow(QMainWindow):
         running = len(running_jobs)
         done = sum(1 for j in jobs if j.status in (JobStatus.SUCCESS, JobStatus.CANCELLED))
         succeeded = sum(1 for j in jobs if j.status == JobStatus.SUCCESS)
+        avg_pct = int(sum(j.progress for j in running_jobs) / running) if running > 0 else 0
+
+        sig = (total, pending, running, done, succeeded, avg_pct, self._was_running, self._done_reset_timer.isActive())
+        if sig == self._last_indicator_sig:
+            return
+        self._last_indicator_sig = sig
 
         self._tab_buttons["queue"].setText(f"Convert ({total})" if total else "Convert")
         self.bulk_combo.setEnabled(total > 0)
@@ -402,7 +428,6 @@ class MainWindow(QMainWindow):
         just_finished = False
         if running > 0:
             self._done_reset_timer.stop()
-            avg_pct = int(sum(j.progress for j in running_jobs) / running)
             self.logo.set_active_progress(True, avg_pct)
             self._set_brand_pill(f"Converting · {avg_pct}%", "active")
             self._was_running = True
@@ -475,6 +500,8 @@ class MainWindow(QMainWindow):
         qsettings: Optional[QSettings] = None,
     ) -> OnboardingWindow:
         """Open the animated starter onboarding and Terms & Privacy window."""
+        from filetool.ui.onboarding import OnboardingWindow
+
         if self._onboarding_win is not None:
             self._onboarding_win.close()
 
@@ -489,7 +516,27 @@ class MainWindow(QMainWindow):
         win.theme_preview_changed.connect(self._on_onboarding_theme_preview)
         win.onboarding_completed.connect(self._on_onboarding_completed)
         self._onboarding_win = win
-        win.start_intro(emit_haptics=True)
+        if initial_step == OnboardingWindow.STEP_INTRO:
+            win.start_intro(emit_haptics=True)
+
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        if screen is not None:
+            avail = screen.availableGeometry()
+            win.move(
+                avail.center().x() - win.width() // 2,
+                avail.center().y() - win.height() // 2,
+            )
+
+        if QGuiApplication.platformName() == "cocoa":
+            try:
+                from AppKit import NSApp
+
+                NSApp.activateIgnoringOtherApps_(True)
+            except Exception:
+                pass
+        win.show()
+        win.raise_()
+        win.activateWindow()
         return win
 
     def _on_onboarding_theme_preview(self, is_dark: bool, accent_key: str) -> None:
@@ -498,13 +545,31 @@ class MainWindow(QMainWindow):
 
     def _on_onboarding_completed(self, result: dict) -> None:
         self._on_theme_toggled(bool(result.get("dark_mode", self.dark_mode)))
-        self._on_accent_changed(str(result.get("accent_key", self.accent_key)))
-        if "wheel_enabled" in result:
-            self.settings_page.sw_wheel.setChecked(bool(result["wheel_enabled"]))
+        accent_val = result.get("accent_key") or result.get("accent_preset")
+        if accent_val:
+            self._on_accent_changed(str(accent_val))
+        wheel_val = result.get("wheel_enabled")
+        if wheel_val is None:
+            wheel_val = result.get("drag_wheel_enabled")
+        if wheel_val is not None:
+            self.settings_page.sw_wheel.blockSignals(True)
+            self.settings_page.sw_wheel.setChecked(bool(wheel_val))
+            self.settings_page.sw_wheel.blockSignals(False)
         if "accessory_mode" in result:
+            self.settings_page.sw_accessory.blockSignals(True)
             self.settings_page.sw_accessory.setChecked(bool(result["accessory_mode"]))
+            self.settings_page.sw_accessory.blockSignals(False)
         self.settings_page.refresh_legal_status()
         self.settings_page._persist_and_emit()
+        if QGuiApplication.platformName() == "cocoa":
+            try:
+                from AppKit import NSApp
+
+                NSApp.activateIgnoringOtherApps_(True)
+            except Exception:
+                pass
+        if self.isMinimized():
+            self.showNormal()
         self.show()
         self.raise_()
         self.activateWindow()
@@ -515,10 +580,3 @@ class MainWindow(QMainWindow):
             self._onboarding_win.close()
             self._onboarding_win = None
         super().closeEvent(event)
-
-    def _show_about(self) -> None:
-        QMessageBox.about(
-            self,
-            "About FileTool",
-            "FileTool\nOffline macOS file converter and Finder utility wheel.",
-        )

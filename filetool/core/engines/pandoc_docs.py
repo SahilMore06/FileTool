@@ -9,12 +9,9 @@ from typing import Any, Dict
 
 from filetool.core.deps import resolver
 from filetool.core.registry import Converter, registry
-from filetool.core.utils import run_command, safe_temp_dir
+from filetool.core.utils import build_soffice_convert_cmd, run_command, safe_temp_dir
 
 logger = logging.getLogger("filetool.engines.pandoc_docs")
-
-# Document formats supported by Pandoc
-DOC_FORMATS = ("docx", "md", "markdown", "txt", "epub", "html", "htm", "rtf")
 
 PANDOC_INPUT_MAP = {
     "docx": "docx",
@@ -65,13 +62,13 @@ def convert_docx_to_pdf(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
     soffice = resolver.get_tool_path("soffice")
 
     with safe_temp_dir(prefix="filetool_docx_pdf_") as tmp_dir:
-        cmd = [
+        cmd = build_soffice_convert_cmd(
             soffice,
-            "--headless",
-            "--convert-to", "pdf",
-            "--outdir", str(tmp_dir),
-            str(src),
-        ]
+            "pdf",
+            tmp_dir,
+            src,
+            profile_dir=tmp_dir / "lo_profile",
+        )
         res = run_command(cmd, timeout=60.0)
         expected_pdf = tmp_dir / f"{src.stem}.pdf"
         if not expected_pdf.exists():

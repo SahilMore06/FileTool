@@ -41,3 +41,20 @@ def test_category_detection():
     assert registry.get_category_for_ext("pptx") == "Slides"
     assert registry.get_category_for_ext("srt") == "Subtitles"
     assert registry.get_category_for_ext("zip") == "Archives"
+
+
+def test_core_import_avoids_eager_heavy_libraries():
+    """Importing filetool.core registers converters without eagerly importing heavy deps."""
+    import subprocess
+    import sys
+
+    probe = (
+        "import sys, filetool.core; "
+        "from filetool.core.registry import registry; "
+        "heavy = [m for m in ('pandas', 'pdf2docx', 'fitz', 'pymupdf', 'pptx', 'pypdf', 'PIL', 'pillow_heif') if m in sys.modules]; "
+        "print(f'{len(registry.all_converters())}|{','.join(heavy)}')"
+    )
+    res = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, check=True)
+    count_str, heavy_str = res.stdout.strip().split("|", 1)
+    assert int(count_str) >= 50
+    assert heavy_str == ""

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from PIL import Image
-import pypdf
 
 from filetool.core.deps import resolver
 from filetool.core.registry import registry
@@ -24,6 +22,8 @@ def strip_image_metadata(src: Path, dest: Path) -> Path:
             return dest
 
     # Pillow fallback: load raw image data without EXIF info dict
+    from PIL import Image
+
     with Image.open(src) as img:
         clean_img = Image.new(img.mode, img.size)
         clean_img.putdata(list(img.getdata()))
@@ -49,6 +49,8 @@ def strip_video_metadata(src: Path, dest: Path) -> Path:
 
 def strip_pdf_metadata(src: Path, dest: Path) -> Path:
     """Remove metadata title, author, producer, and creation date from PDF."""
+    import pypdf
+
     reader = pypdf.PdfReader(str(src))
     writer = pypdf.PdfWriter()
 

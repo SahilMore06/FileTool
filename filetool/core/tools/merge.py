@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import List, Sequence
+from typing import TYPE_CHECKING, List, Sequence
 
-from PIL import Image
-import pypdf
+if TYPE_CHECKING:
+    from PIL import Image
 
 from filetool.core.deps import resolver
 from filetool.core.utils import run_command, safe_temp_dir
@@ -19,6 +19,8 @@ def merge_pdfs(src_files: Sequence[Path], dest: Path) -> Path:
     """Merge multiple PDF documents into a single sequential PDF."""
     if not src_files:
         raise ValueError("Must provide at least one PDF file to merge")
+
+    import pypdf
 
     writer = pypdf.PdfWriter()
     for pdf_path in src_files:
@@ -35,6 +37,8 @@ def merge_images_to_pdf(src_images: Sequence[Path], dest: Path, dpi: int = 300) 
     """Merge a sequence of image files into a single multi-page PDF document."""
     if not src_images:
         raise ValueError("Must provide at least one image file to merge into PDF")
+
+    from PIL import Image
 
     loaded_images: List[Image.Image] = []
     try:

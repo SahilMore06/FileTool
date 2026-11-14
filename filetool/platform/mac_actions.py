@@ -9,6 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
+from xml.sax.saxutils import escape as xml_escape
 
 from PySide6.QtCore import QPoint, Qt, QTimer
 from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPainterPath, QPixmap
@@ -27,16 +28,27 @@ LAUNCH_AGENT_LABEL = "com.filetool.app"
 LAUNCH_AGENT_PATH = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCH_AGENT_LABEL}.plist"
 
 
-def trigger_haptic_tick(pattern: str = "generic", when: str = "now") -> bool:
-    """Trigger a macOS Force Touch trackpad haptic pulse.
+def _escape_applescript_str(text: str) -> str:
+    """Escape backslashes, quotes, and newlines for AppleScript literals."""
+    return (
+        text.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\r\n", " ")
+        .replace("\r", " ")
+        .replace("\n", " ")
+    )
 
-    Args:
-        pattern: One of ``"generic"``, ``"alignment"``, or ``"level_change"``.
-        when: Performance timing hint (``"now"``, ``"draw_completed"``, ``"default"``).
 
-    Returns:
-        ``True`` if ``NSHapticFeedbackManager`` performed the pulse, else ``False``.
-    """
+_HAPTIC_BRIDGE: Optional[tuple] = None
+_HAPTIC_BRIDGE_MODULE: object = None
+
+
+def _get_haptic_bridge() -> Optional[tuple]:
+    """Lazily resolve and cache NSHapticFeedbackManager performer and enums."""
+    global _HAPTIC_BRIDGE, _HAPTIC_BRIDGE_MODULE
+    active_appkit = sys.modules.get("AppKit")
+    if _HAPTIC_BRIDGE is not None and active_appkit is not None and active_appkit is _HAPTIC_BRIDGE_MODULE:
+        return _HAPTIC_BRIDGE
     try:
         from AppKit import (
             NSHapticFeedbackManager,
@@ -48,23 +60,50 @@ def trigger_haptic_tick(pattern: str = "generic", when: str = "now") -> bool:
             NSHapticFeedbackPerformanceTimeNow,
         )
 
-        pattern_map = {
-            "generic": NSHapticFeedbackPatternGeneric,
-            "alignment": NSHapticFeedbackPatternAlignment,
-            "level_change": NSHapticFeedbackPatternLevelChange,
-        }
-        timing_map = {
-            "now": NSHapticFeedbackPerformanceTimeNow,
-            "draw_completed": NSHapticFeedbackPerformanceTimeDrawCompleted,
-            "default": NSHapticFeedbackPerformanceTimeDefault,
-        }
-        chosen_pattern = pattern_map.get(pattern.lower(), NSHapticFeedbackPatternGeneric)
-        chosen_when = timing_map.get(when.lower(), NSHapticFeedbackPerformanceTimeNow)
-
         performer = NSHapticFeedbackManager.defaultPerformer()
-        if performer:
-            performer.performFeedbackPattern_performanceTime_(chosen_pattern, chosen_when)
-            return True
+        if not performer:
+            return None
+        _HAPTIC_BRIDGE_MODULE = sys.modules.get("AppKit")
+        _HAPTIC_BRIDGE = (
+            performer,
+            {
+                "generic": NSHapticFeedbackPatternGeneric,
+                "alignment": NSHapticFeedbackPatternAlignment,
+                "level_change": NSHapticFeedbackPatternLevelChange,
+            },
+            {
+                "now": NSHapticFeedbackPerformanceTimeNow,
+                "draw_completed": NSHapticFeedbackPerformanceTimeDrawCompleted,
+                "default": NSHapticFeedbackPerformanceTimeDefault,
+            },
+            NSHapticFeedbackPatternGeneric,
+            NSHapticFeedbackPerformanceTimeNow,
+        )
+        return _HAPTIC_BRIDGE
+    except Exception as exc:
+        logger.debug("Haptic bridge unavailable: %s", exc)
+        return None
+
+
+def trigger_haptic_tick(pattern: str = "generic", when: str = "now") -> bool:
+    """Trigger a macOS Force Touch trackpad haptic pulse.
+
+    Args:
+        pattern: One of ``"generic"``, ``"alignment"``, or ``"level_change"``.
+        when: Performance timing hint (``"now"``, ``"draw_completed"``, ``"default"``).
+
+    Returns:
+        ``True`` if ``NSHapticFeedbackManager`` performed the pulse, else ``False``.
+    """
+    bridge = _get_haptic_bridge()
+    if bridge is None:
+        return False
+    performer, pattern_map, timing_map, default_pattern, default_when = bridge
+    try:
+        chosen_pattern = pattern_map.get(pattern.lower(), default_pattern)
+        chosen_when = timing_map.get(when.lower(), default_when)
+        performer.performFeedbackPattern_performanceTime_(chosen_pattern, chosen_when)
+        return True
     except Exception as exc:
         logger.debug("Haptic feedback error: %s", exc)
     return False
@@ -153,10 +192,10 @@ def send_completion_notification(title: str, message: str, file_path: Optional[s
     except Exception:
         # Fallback to osascript
         try:
-            clean_title = title.replace('"', '\\"')
-            clean_msg = message.replace('"', '\\"')
+            clean_title = _escape_applescript_str(title)
+            clean_msg = _escape_applescript_str(message)
             script = f'display notification "{clean_msg}" with title "{clean_title}"'
-            subprocess.run(["osascript", "-e", script], check=False)
+            subprocess.run(["osascript", "-e", script], capture_output=True, check=False)
         except Exception as exc:
             logger.debug("Notification error: %s", exc)
 
@@ -171,13 +210,19 @@ def get_finder_selection() -> List[str]:
             repeat with item_ref in sel
                 set end of posix_paths to POSIX path of item_ref
             end repeat
-            return posix_paths
+            set AppleScript's text item delimiters to linefeed
+            return posix_paths as text
         end tell
         '''
-        res = subprocess.run(["osascript", "-e", ascript], capture_output=True, text=True, check=False)
+        res = subprocess.run(
+            ["osascript", "-e", ascript],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=0.4,
+        )
         if res.returncode == 0 and res.stdout.strip():
-            # osascript returns comma-delimited strings
-            return [p.strip() for p in res.stdout.strip().split(", ") if p.strip()]
+            return [p.rstrip("/") if len(p) > 1 else p for p in res.stdout.splitlines() if p.strip()]
     except Exception as exc:
         logger.debug("Failed getting Finder selection: %s", exc)
     return []
@@ -257,19 +302,27 @@ def action_move_files(paths: List[str], target_folder: Optional[str] = None) -> 
 
     dest_dir = Path(target_folder)
     dest_dir.mkdir(parents=True, exist_ok=True)
+    resolved_dest_dir = dest_dir.resolve()
     moved: List[str] = []
 
     for p in paths:
         src = Path(p)
-        if src.exists():
-            dest = dest_dir / src.name
-            # Avoid overwrite collision
-            counter = 1
-            while dest.exists():
-                dest = dest_dir / f"{src.stem}_{counter}{src.suffix}"
-                counter += 1
+        if not src.exists():
+            continue
+        if src.parent.resolve() == resolved_dest_dir:
+            moved.append(str(src))
+            continue
+        dest = dest_dir / src.name
+        # Avoid overwrite collision
+        counter = 1
+        while dest.exists():
+            dest = dest_dir / f"{src.stem}_{counter}{src.suffix}"
+            counter += 1
+        try:
             shutil.move(str(src), str(dest))
             moved.append(str(dest))
+        except OSError as exc:
+            logger.warning("Failed moving %s to %s: %s", src, dest, exc)
 
     return moved
 
@@ -292,6 +345,9 @@ class FloatWindow(QWidget):
         self._init_ui()
 
     def _init_ui(self) -> None:
+        from filetool.ui.styles import get_tokens
+
+        tokens = get_tokens(dark_mode=True)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 10, 12, 12)
         layout.setSpacing(8)
@@ -301,24 +357,35 @@ class FloatWindow(QWidget):
         header.setSpacing(6)
 
         name_lbl = QLabel(Path(self.file_path).name)
-        name_lbl.setStyleSheet("color: #FFFFFF; font-weight: 600; font-size: 12px;")
+        name_lbl.setStyleSheet(
+            f"color: {tokens['text_primary']}; font-weight: 600; font-size: 12px;"
+        )
         header.addWidget(name_lbl, stretch=1)
 
         close_btn = QPushButton("✕")
         close_btn.setFixedSize(20, 20)
-        close_btn.setStyleSheet("""
-            QPushButton {
-                background: rgba(255, 255, 255, 0.15);
-                color: #DDD;
-                border: none;
+        close_btn.setCursor(Qt.PointingHandCursor)
+        close_btn.setToolTip("Close preview (Esc)")
+        close_btn.setStyleSheet(
+            f"""
+            QPushButton {{
+                background: {tokens['bg_surface2']};
+                color: {tokens['text_secondary']};
+                border: 1px solid {tokens['border']};
                 border-radius: 10px;
                 font-size: 11px;
-            }
-            QPushButton:hover {
-                background: #FF5F56;
-                color: white;
-            }
-        """)
+                padding: 0px;
+            }}
+            QPushButton:hover {{
+                background: {tokens['error']};
+                color: {tokens['text_primary']};
+                border-color: {tokens['error']};
+            }}
+            QPushButton:focus {{
+                border: 1.5px solid {tokens['border_focus']};
+            }}
+            """
+        )
         close_btn.clicked.connect(self.close)
         header.addWidget(close_btn)
 
@@ -327,7 +394,9 @@ class FloatWindow(QWidget):
         # Thumbnail display
         self.img_lbl = QLabel()
         self.img_lbl.setAlignment(Qt.AlignCenter)
-        self.img_lbl.setStyleSheet("background: rgba(0, 0, 0, 0.3); border-radius: 8px;")
+        self.img_lbl.setStyleSheet(
+            f"background: {tokens['bg_main']}; border: 1px solid {tokens['border']}; border-radius: 8px;"
+        )
         layout.addWidget(self.img_lbl, stretch=1)
 
         self._load_thumbnail()
@@ -346,14 +415,17 @@ class FloatWindow(QWidget):
         if not pix or pix.isNull():
             # Get native macOS icon
             try:
-                from AppKit import NSWorkspace, NSBitmapImageRep, NSPNGFileType
+                from AppKit import NSBitmapImageRep, NSPNGFileType, NSWorkspace
+
                 icon = NSWorkspace.sharedWorkspace().iconForFile_(str(p))
                 icon.setSize_((128, 128))
                 tiff_data = icon.TIFFRepresentation()
-                rep = NSBitmapImageRep.imageRepsWithData_(tiff_data)[0]
-                png_data = rep.representationUsingType_properties_(NSPNGFileType, None)
-                pix = QPixmap()
-                pix.loadFromData(bytes(png_data))
+                reps = NSBitmapImageRep.imageRepsWithData_(tiff_data) if tiff_data else None
+                if reps:
+                    png_data = reps[0].representationUsingType_properties_(NSPNGFileType, None)
+                    if png_data:
+                        pix = QPixmap()
+                        pix.loadFromData(bytes(png_data))
             except Exception:
                 pass
 
@@ -362,15 +434,30 @@ class FloatWindow(QWidget):
             self.img_lbl.setPixmap(scaled)
 
     def paintEvent(self, event) -> None:
+        from filetool.ui.styles import get_tokens
+
+        tokens = get_tokens(dark_mode=True)
+        bg = QColor(tokens["bg_surface"])
+        bg.setAlpha(235)
+        border = QColor(tokens["border_strong"])
+
         painter = QPainter(self)
+        if not painter.isActive():
+            return
         painter.setRenderHint(QPainter.Antialiasing)
         path = QPainterPath()
-        path.addRoundedRect(0, 0, self.width(), self.height(), 14, 14)
+        path.addRoundedRect(0.5, 0.5, self.width() - 1.0, self.height() - 1.0, 14, 14)
 
-        # Frosted dark translucent glass
-        painter.fillPath(path, QColor(28, 30, 36, 230))
-        painter.setPen(QColor(255, 255, 255, 45))
+        painter.fillPath(path, bg)
+        painter.setPen(border)
         painter.drawPath(path)
+        painter.end()
+
+    def keyPressEvent(self, event) -> None:
+        if event.key() == Qt.Key_Escape:
+            self.close()
+            return
+        super().keyPressEvent(event)
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.LeftButton:
@@ -384,10 +471,19 @@ class FloatWindow(QWidget):
 _active_float_windows: List[FloatWindow] = []
 
 
+def _discard_float_window(win: FloatWindow) -> None:
+    try:
+        _active_float_windows.remove(win)
+    except ValueError:
+        pass
+
+
 def action_float(file_path: str) -> FloatWindow:
     """Open an always-on-top floating inspection window."""
     w = FloatWindow(file_path)
+    w.setAttribute(Qt.WA_DeleteOnClose, True)
     _active_float_windows.append(w)
+    w.destroyed.connect(lambda *_args, win=w: _discard_float_window(win))
     w.show()
     return w
 
@@ -402,29 +498,44 @@ def is_launch_at_login_enabled() -> bool:
 def set_launch_at_login(enabled: bool) -> bool:
     """Enable or disable launch at login via ~/Library/LaunchAgents/com.filetool.app.plist."""
     try:
+        domain = f"gui/{os.getuid()}" if hasattr(os, "getuid") else "gui/501"
         if not enabled:
             if LAUNCH_AGENT_PATH.exists():
-                subprocess.run(["launchctl", "unload", str(LAUNCH_AGENT_PATH)], check=False)
+                res = subprocess.run(
+                    ["launchctl", "bootout", domain, str(LAUNCH_AGENT_PATH)],
+                    capture_output=True,
+                    check=False,
+                )
+                if res.returncode != 0:
+                    subprocess.run(
+                        ["launchctl", "unload", str(LAUNCH_AGENT_PATH)],
+                        capture_output=True,
+                        check=False,
+                    )
                 LAUNCH_AGENT_PATH.unlink()
             return True
 
         # Generate plist
         LAUNCH_AGENT_PATH.parent.mkdir(parents=True, exist_ok=True)
-        py_exe = sys.executable
-        app_entry = str(Path(__file__).resolve().parent.parent / "app.py")
+        py_exe = xml_escape(sys.executable)
+        app_entry = xml_escape(str(Path(__file__).resolve().parent.parent / "app.py"))
+        work_dir = xml_escape(str(Path(__file__).resolve().parent.parent.parent))
+        label = xml_escape(LAUNCH_AGENT_LABEL)
 
         plist_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>{LAUNCH_AGENT_LABEL}</string>
+    <string>{label}</string>
     <key>ProgramArguments</key>
     <array>
         <string>{py_exe}</string>
         <string>{app_entry}</string>
         <string>--daemon</string>
     </array>
+    <key>WorkingDirectory</key>
+    <string>{work_dir}</string>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
@@ -433,7 +544,22 @@ def set_launch_at_login(enabled: bool) -> bool:
 </plist>
 """
         LAUNCH_AGENT_PATH.write_text(plist_content, encoding="utf-8")
-        subprocess.run(["launchctl", "load", str(LAUNCH_AGENT_PATH)], check=False)
+        subprocess.run(
+            ["launchctl", "bootout", f"{domain}/{LAUNCH_AGENT_LABEL}"],
+            capture_output=True,
+            check=False,
+        )
+        res = subprocess.run(
+            ["launchctl", "bootstrap", domain, str(LAUNCH_AGENT_PATH)],
+            capture_output=True,
+            check=False,
+        )
+        if res.returncode != 0:
+            subprocess.run(
+                ["launchctl", "load", str(LAUNCH_AGENT_PATH)],
+                capture_output=True,
+                check=False,
+            )
         return True
     except Exception as exc:
         logger.error("Failed toggling launch at login: %s", exc)

@@ -8,9 +8,10 @@ callers pass a fresh destination path.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
-from PIL import Image
+if TYPE_CHECKING:
+    from PIL import Image
 
 # Formats Pillow can both read and write losslessly-enough for these ops
 SUPPORTED_EXTS = {"jpg", "jpeg", "png", "webp", "tiff", "tif", "bmp"}
@@ -61,6 +62,8 @@ def resize_image(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
     if width <= 0 and height <= 0:
         raise ValueError("Resize requires a width or height")
 
+    from PIL import Image
+
     with Image.open(src) as img:
         img.load()
         w0, h0 = img.size
@@ -78,6 +81,8 @@ def resize_image(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
 
 def compress_image(src: Path, dest: Path, options: Dict[str, Any]) -> Path:
     """Re-encode ``src`` into ``dest`` at the requested quality (1-100)."""
+    from PIL import Image
+
     quality = int(options.get("quality", 75))
     with Image.open(src) as img:
         img.load()

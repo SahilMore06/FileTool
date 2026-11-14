@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Optional
 
 ACCENT_PRESETS = {
@@ -56,6 +57,7 @@ TOKENS_LIGHT = {
     "bg_surface": "#FFFFFF",
     "bg_surface_hover": "#EDECEA",
     "bg_surface2": "#EAE8E3",
+    "bg_tab_active": "#FFFFFF",
     "bg_input": "#FFFFFF",
     "tooltip_bg": "#202124",
     "tooltip_text": "#E8E6E1",
@@ -81,8 +83,6 @@ TOKENS_LIGHT = {
     "warning_subtle": "#FEF5E5",
     "progress_track": "#E8E6E1",
     "progress_fill": "#F28A32",
-    "shadow_color": "rgba(32, 33, 36, 0.10)",
-    "shadow_strong": "rgba(32, 33, 36, 0.18)",
 }
 
 TOKENS_DARK = {
@@ -90,6 +90,7 @@ TOKENS_DARK = {
     "bg_surface": "#202123",
     "bg_surface_hover": "#2A2B2E",
     "bg_surface2": "#252628",
+    "bg_tab_active": "#323438",
     "bg_input": "#252628",
     "tooltip_bg": "#111214",
     "tooltip_text": "#D8D6D1",
@@ -115,8 +116,6 @@ TOKENS_DARK = {
     "warning_subtle": "#2A1D09",
     "progress_track": "#2E2F32",
     "progress_fill": "#F28A32",
-    "shadow_color": "rgba(0, 0, 0, 0.30)",
-    "shadow_strong": "rgba(0, 0, 0, 0.50)",
 }
 
 
@@ -137,8 +136,9 @@ def contrast_ratio(fg_hex: str, bg_hex: str) -> float:
     return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)
 
 
-def get_tokens(dark_mode: bool = False, accent_key: Optional[str] = None) -> dict:
-    """Resolve theme tokens with the selected accent preset applied."""
+@lru_cache(maxsize=16)
+def _resolve_tokens(dark_mode: bool, accent_key: Optional[str]) -> dict:
+    """Internal memoized token resolver."""
     base = dict(TOKENS_DARK if dark_mode else TOKENS_LIGHT)
     if accent_key and accent_key in ACCENT_PRESETS:
         preset = ACCENT_PRESETS[accent_key]
@@ -157,9 +157,15 @@ def get_tokens(dark_mode: bool = False, accent_key: Optional[str] = None) -> dic
     return base
 
 
+def get_tokens(dark_mode: bool = False, accent_key: Optional[str] = None) -> dict:
+    """Resolve theme tokens with the selected accent preset applied."""
+    return dict(_resolve_tokens(bool(dark_mode), accent_key))
+
+
+@lru_cache(maxsize=16)
 def get_stylesheet(dark_mode: bool = False, accent_key: Optional[str] = None) -> str:
-    """Build the application QSS stylesheet for the given theme and accent."""
-    return _build_stylesheet(get_tokens(dark_mode, accent_key=accent_key))
+    """Build (and cache) the application QSS stylesheet for the given theme and accent."""
+    return _build_stylesheet(_resolve_tokens(bool(dark_mode), accent_key))
 
 
 def _build_stylesheet(t: dict) -> str:
@@ -702,9 +708,9 @@ QPushButton#tabButton:hover {{
 }}
 
 QPushButton#tabButton[active="true"] {{
-    background-color: {t['bg_surface']};
+    background-color: {t['bg_tab_active']};
     color: {t['text_primary']};
-    border: 1px solid {t['border']};
+    border: 1px solid {t['border_strong']};
     font-weight: 600;
 }}
 
@@ -738,20 +744,84 @@ QPushButton#filterPill[active="true"] {{
 QWidget#onboardingHeader {{
     background-color: {t['bg_surface']};
     border-bottom: 1px solid {t['border']};
-    border-top-left-radius: 17px;
-    border-top-right-radius: 17px;
+    border-top-left-radius: 13px;
+    border-top-right-radius: 13px;
+}}
+
+QFrame#onboardingStepGroup {{
+    background-color: {t['bg_main']};
+    border: 1px solid {t['border']};
+    border-radius: 8px;
+}}
+
+QPushButton#onboardingStepPill {{
+    background-color: transparent;
+    color: {t['text_secondary']};
+    border: 1px solid transparent;
+    border-radius: 5.5px;
+    padding: 3px 11px;
+    font-size: 11.5px;
+    font-weight: 500;
+}}
+
+QPushButton#onboardingStepPill:hover {{
+    color: {t['text_primary']};
+}}
+
+QPushButton#onboardingStepPill[done="true"] {{
+    color: {t['text_primary']};
+}}
+
+QPushButton#onboardingStepPill[active="true"] {{
+    background-color: {t['bg_surface']};
+    color: {t['text_primary']};
+    border: 1px solid {t['border']};
+    font-weight: 600;
 }}
 
 QWidget#onboardingFooter {{
     background-color: {t['bg_surface']};
     border-top: 1px solid {t['border']};
-    border-bottom-left-radius: 17px;
-    border-bottom-right-radius: 17px;
+    border-bottom-left-radius: 13px;
+    border-bottom-right-radius: 13px;
+}}
+
+QWidget#onboardingEditorialPane {{
+    background-color: {t['bg_surface']};
+}}
+
+QWidget#onboardingSplitStage {{
+    background-color: {t['bg_main']};
+}}
+
+QWidget#onboardingInspector {{
+    background-color: {t['bg_surface']};
+}}
+
+QFrame#onboardingDivider {{
+    background-color: {t['border']};
+    border: none;
+    max-height: 1px;
+    min-height: 1px;
+}}
+
+QFrame#onboardingVDivider {{
+    background-color: {t['border']};
+    border: none;
+    max-width: 1px;
+    min-width: 1px;
+}}
+
+QLabel#onboardingHeroTitle {{
+    color: {t['text_primary']};
+    font-size: 29px;
+    font-weight: 700;
+    letter-spacing: -0.8px;
 }}
 
 QLabel#onboardingHeadline {{
     color: {t['text_primary']};
-    font-size: 21px;
+    font-size: 19px;
     font-weight: 700;
     letter-spacing: -0.4px;
 }}
@@ -763,87 +833,140 @@ QLabel#onboardingLead {{
 
 QLabel#onboardingSectionTitle {{
     color: {t['text_primary']};
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 700;
+    letter-spacing: -0.2px;
 }}
 
-QPushButton#onboardingStepPill {{
+QLabel#onboardingRowLabel {{
+    color: {t['text_primary']};
+    font-size: 12.5px;
+    font-weight: 600;
+}}
+
+QLabel#onboardingRowSub {{
+    color: {t['text_secondary']};
+    font-size: 11.5px;
+}}
+
+/* Command capsule & trigger-key guides */
+
+QPushButton#onboardingKeycap {{
+    background-color: {t['bg_surface']};
+    color: {t['text_secondary']};
+    border: 1px solid {t['border_strong']};
+    border-bottom: 2px solid {t['border_strong']};
+    border-radius: 7px;
+    padding: 5px 14px;
+    font-size: 11.5px;
+    font-weight: 600;
+}}
+
+QPushButton#onboardingKeycap:hover {{
+    color: {t['text_primary']};
+    background-color: {t['bg_surface_hover']};
+}}
+
+QPushButton#onboardingKeycap:focus {{
+    border: 1px solid {t['border_focus']};
+}}
+
+QPushButton#onboardingKeycap[active="true"] {{
+    background-color: {t['bg_tab_active']};
+    color: {t['accent_text']};
+    border: 1px solid {t['accent']};
+    border-bottom: 2px solid {t['accent']};
+}}
+
+QLabel#onboardingCapStatus {{
+    color: {t['text_muted']};
+    background-color: transparent;
+    border: none;
+    padding: 0px;
+    font-size: 11px;
+    font-weight: 500;
+}}
+
+QLabel#onboardingCapStatus[ready="true"] {{
+    color: {t['text_secondary']};
+    background-color: transparent;
+    border: none;
+    font-weight: 500;
+}}
+
+QWidget#onboardingSidebar {{
+    background-color: {t['bg_main']};
+}}
+
+QPushButton#onboardingSidebarTab {{
     background-color: transparent;
     color: {t['text_secondary']};
     border: 1px solid transparent;
-    border-radius: 8px;
-    padding: 4px 11px;
-    font-size: 11.5px;
-    font-weight: 600;
+    border-radius: 7px;
+    padding: 7px 11px;
+    text-align: left;
+    font-size: 12.5px;
+    font-weight: 500;
 }}
 
-QPushButton#onboardingStepPill:hover {{
-    background-color: {t['bg_surface_hover']};
+QPushButton#onboardingSidebarTab:hover {{
+    background-color: {t['bg_surface']};
     color: {t['text_primary']};
 }}
 
-QPushButton#onboardingStepPill[active="true"] {{
-    background-color: {t['accent_subtle']};
-    color: {t['accent_text']};
-    border: 1px solid {t['accent']};
-}}
-
-QPushButton#onboardingStepPill[done="true"] {{
-    color: {t['success']};
-}}
-
-QLabel#onboardingCapabilityPill {{
-    background-color: {t['bg_surface2']};
-    color: {t['text_secondary']};
+QPushButton#onboardingSidebarTab[active="true"] {{
+    background-color: {t['bg_surface']};
+    color: {t['text_primary']};
     border: 1px solid {t['border']};
-    border-radius: 8px;
-    padding: 4px 9px;
-    font-size: 11.5px;
     font-weight: 600;
 }}
 
-QLabel#onboardingCapabilityPill[ready="true"] {{
-    background-color: {t['success_subtle']};
-    color: {t['success']};
-    border: 1px solid {t['success']};
+QWidget#onboardingLegalPaper {{
+    background-color: {t['bg_surface']};
+}}
+
+QWidget#onboardingConsentStrip {{
+    background-color: {t['bg_surface']};
+    border-top: 1px solid {t['border']};
 }}
 
 QTextBrowser#onboardingLegalView {{
-    background-color: {t['bg_input']};
+    background-color: transparent;
     color: {t['text_primary']};
-    border: 1px solid {t['border']};
-    border-radius: 10px;
-    padding: 12px 14px;
+    border: none;
+    border-radius: 0px;
+    padding: 0px;
     font-size: 12.5px;
 }}
 
 QPushButton#subtleLinkButton {{
     background-color: transparent;
     border: none;
-    color: {t['accent_text']};
+    color: {t['text_secondary']};
     font-size: 12px;
-    font-weight: 600;
-    padding: 4px 8px;
+    font-weight: 500;
+    padding: 5px 10px;
     border-radius: 6px;
 }}
 
 QPushButton#subtleLinkButton:hover {{
-    background-color: {t['accent_subtle']};
+    color: {t['text_primary']};
+    background-color: {t['bg_surface_hover']};
 }}
 
 QPushButton#dangerSubtleButton {{
     background-color: transparent;
-    border: 1px solid {t['border']};
+    border: 1px solid transparent;
     color: {t['error']};
     font-size: 12px;
     font-weight: 600;
-    border-radius: 8px;
+    border-radius: 7px;
     padding: 6px 12px;
 }}
 
 QPushButton#dangerSubtleButton:hover {{
     background-color: {t['error_subtle']};
-    border-color: {t['error']};
+    border: 1px solid {t['error']};
 }}
 
 QComboBox[invalid="true"], QLineEdit[invalid="true"] {{
@@ -851,7 +974,7 @@ QComboBox[invalid="true"], QLineEdit[invalid="true"] {{
     background-color: {t['error_subtle']};
 }}
 
-QPushButton:focus-visible, QComboBox:focus-visible, QTextBrowser:focus-visible {{
+QPushButton:focus, QComboBox:focus, QTextBrowser:focus {{
     outline: none;
     border: 1.5px solid {t['border_focus']};
 }}

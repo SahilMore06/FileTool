@@ -267,9 +267,9 @@ def test_brand_emblem_and_logo_animations(qapp):
 
 
 def test_tray_popover_state_signals_and_drop(qapp, tmp_path: Path):
-    """TrayPopover updates state cards cleanly, toggles wheel, and forwards dropped files."""
+    """TrayPopover updates state cards cleanly, activates focused rows via Return, and forwards dropped files."""
     from PySide6.QtCore import QMimeData, QPointF, Qt, QUrl
-    from PySide6.QtGui import QDropEvent
+    from PySide6.QtGui import QDropEvent, QKeyEvent
 
     from filetool.ui.tray_popover import TrayPopover
 
@@ -301,6 +301,21 @@ def test_tray_popover_state_signals_and_drop(qapp, tmp_path: Path):
     ev = QDropEvent(QPointF(10, 10), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier)
     pop.dropEvent(ev)
     assert dropped_batches == [[sample.resolve()]]
+
+    prefs_triggered = []
+    deps_triggered = []
+    pop.preferences_requested.connect(lambda: prefs_triggered.append(True))
+    pop.dependencies_requested.connect(lambda: deps_triggered.append(True))
+
+    pop.keyPressEvent(QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key_Down, Qt.NoModifier))
+    assert pop.focusWidget() is pop.btn_open
+    pop.keyPressEvent(QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key_Down, Qt.NoModifier))
+    assert pop.focusWidget() is pop.btn_prefs
+    pop.keyPressEvent(QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key_Return, Qt.NoModifier))
+    assert prefs_triggered == [True]
+
+    pop.btn_deps.click()
+    assert deps_triggered == [True]
     pop.close()
 
 
@@ -402,8 +417,23 @@ def test_onboarding_starter_animation_haptic_sandbox_and_consent(qapp, tmp_path:
     assert "alignment" in haptic_events
     assert "level_change" in haptic_events
 
-    # Step 1: haptic wheel sandbox boundary detent + switch + theme swap
+    # Interactive starter petal click & hover highlight sync
+    h_cx, h_cy = win.hero_canvas.width() / 2.0, win.hero_canvas.height() / 2.0 - 70.0
+    hero_click = QMouseEvent(
+        QMouseEvent.Type.MouseButtonPress,
+        QPointF(h_cx, h_cy),
+        QPointF(h_cx, h_cy),
+        Qt.LeftButton,
+        Qt.LeftButton,
+        Qt.NoModifier,
+    )
+    win.hero_canvas.mousePressEvent(hero_click)
+    assert "Selected:" in win.hero_status_lbl.text()
+
+    # Step 1: haptic wheel sandbox boundary detent + sample switch + theme swap
     win.go_to_step(ob_mod.OnboardingWindow.STEP_SANDBOX)
+    win._pick_sample_file("sample_video", emit_haptic=False)
+    assert win.wheel_sandbox._segments[0].label == "MP4"
     win._pick_sandbox_wheel("tools")
     assert win.wheel_sandbox._wheel_type == "tools"
 
@@ -424,6 +454,7 @@ def test_onboarding_starter_animation_haptic_sandbox_and_consent(qapp, tmp_path:
     win.wheel_sandbox.mousePressEvent(click_ev)
     assert not win.wheel_sandbox.grab().isNull()
     assert "Tools" in win.sandbox_status.text()
+    assert "launch_demo.mov" in win.sandbox_status.text()
     win._on_accent_picked("ocean")
     assert win._accent_key == "ocean"
 
@@ -454,16 +485,184 @@ def test_onboarding_starter_animation_haptic_sandbox_and_consent(qapp, tmp_path:
 
 
 def test_settings_legal_actions_and_main_window_replay(qapp, tmp_path: Path):
-    """MainWindow Settings replay buttons open the matching onboarding stage cleanly."""
+    """MainWindow Settings replay opens visibly and syncs completed onboarding state cleanly."""
     from PySide6.QtCore import QSettings
 
     window = MainWindow()
     iso_qs = QSettings(str(tmp_path / "replay.ini"), QSettings.IniFormat)
+    window.qsettings = iso_qs
+    window.settings_page.qsettings = iso_qs
     try:
         assert window.settings_page.legal_status_badge.text()
         ob = window.open_onboarding(first_boot=False, initial_step=2, initial_legal_doc="terms", qsettings=iso_qs)
+        assert ob.isVisible() is True
         assert ob._current_step == 2
         assert ob._legal_doc == "terms"
+        ob._on_accent_picked("ocean")
+        ob.sw_wheel.setChecked(False)
+        ob.consent_checkbox.setChecked(True)
+        ob.complete_onboarding(animate_exit=False)
+        assert window.accent_key == "ocean"
+        assert iso_qs.value("wheel_enabled", True, type=bool) is False
+        assert window.settings_page.sw_wheel.isChecked() is False
         ob.close()
     finally:
         window.close()
+
+
+def test_onboarding_dial_drag_file_drop_and_shortcuts(qapp, tmp_path: Path, monkeypatch):
+    """Onboarding supports header theme toggles, pillar activation, rotary detents, file drops, and 1/2/3 keys."""
+    from PySide6.QtCore import QMimeData, QPointF, QSettings, Qt, QUrl
+    from PySide6.QtGui import QDropEvent, QKeyEvent, QMouseEvent
+
+    from filetool.ui import onboarding as ob_mod
+
+    haptics = []
+    monkeypatch.setattr(ob_mod, "trigger_haptic_tick", lambda pattern="generic", when="now": haptics.append(pattern) or True)
+
+    sample_mov = tmp_path / "sample_clip.mov"
+    sample_mov.write_bytes(b"mov")
+
+    qs = QSettings(str(tmp_path / "interactive_ob.ini"), QSettings.IniFormat)
+    win = ob_mod.OnboardingWindow(dark_mode=False, accent_key="amber", first_boot=False, qsettings=qs)
+
+    # Header Light/Dark toggle flips theme live from Step 0
+    win.theme_toggle_btn.click()
+    assert win._dark_mode is True
+
+    # Interactive pillar row selects Finder Drag Wheel demo mode and spins to Shift/Cmd/Ctrl/Sticky key telemetry
+    win._pillar_rows[1].click()
+    assert win.hero_canvas._selected_idx == 4
+    assert win.hero_canvas._studio_mode == "key_convert"
+    assert "Drag Wheel" in win.hero_status_lbl.text()
+    assert "shift" in win.hero_status_lbl.text().lower()
+
+    win._intro_key_btns["tools"].click()
+    assert win.hero_canvas._studio_mode == "key_tools"
+    assert "command" in win.hero_status_lbl.text().lower()
+    win._intro_key_btns["actions"].click()
+    assert win.hero_canvas._studio_mode == "key_actions"
+    assert "control" in win.hero_status_lbl.text().lower()
+    win._intro_key_btns["sticky"].click()
+    assert win.hero_canvas._studio_mode == "key_sticky"
+    assert "return" in win.hero_status_lbl.text().lower()
+
+    win._pillar_rows[2].click()
+    assert win.hero_canvas._studio_mode == "local"
+    win._pillar_rows[0].click()
+    assert win.hero_canvas._studio_mode == "overview"
+
+    # Dragging around the dial crosses a 60-degree detent and emits alignment haptic
+    h_cx, h_cy = win.hero_canvas.width() / 2.0, win.hero_canvas.height() / 2.0
+    press_ev = QMouseEvent(
+        QMouseEvent.Type.MouseButtonPress,
+        QPointF(h_cx, h_cy - 80.0),
+        QPointF(h_cx, h_cy - 80.0),
+        Qt.LeftButton,
+        Qt.LeftButton,
+        Qt.NoModifier,
+    )
+    move_ev = QMouseEvent(
+        QMouseEvent.Type.MouseMove,
+        QPointF(h_cx + 80.0, h_cy),
+        QPointF(h_cx + 80.0, h_cy),
+        Qt.LeftButton,
+        Qt.LeftButton,
+        Qt.NoModifier,
+    )
+    release_ev = QMouseEvent(
+        QMouseEvent.Type.MouseButtonRelease,
+        QPointF(h_cx + 80.0, h_cy),
+        QPointF(h_cx + 80.0, h_cy),
+        Qt.LeftButton,
+        Qt.NoButton,
+        Qt.NoModifier,
+    )
+    prev_h = len(haptics)
+    win.hero_canvas.mousePressEvent(press_ev)
+    win.hero_canvas.mouseMoveEvent(move_ev)
+    win.hero_canvas.mouseReleaseEvent(release_ev)
+    assert len(haptics) > prev_h
+    assert not win.hero_canvas.grab().isNull()
+
+    # Dropping a Finder file on Step 0 updates telemetry
+    mime = QMimeData()
+    mime.setUrls([QUrl.fromLocalFile(str(sample_mov))])
+    win.hero_canvas.dropEvent(QDropEvent(QPointF(h_cx, h_cy), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier))
+    assert "sample_clip.mov" in win.hero_status_lbl.text()
+
+    # Step 1 keyboard shortcuts 2 / 3 / 4 / Left / Right / Esc drive spin, key telemetry, and sticky preview
+    win.go_to_step(ob_mod.OnboardingWindow.STEP_SANDBOX, emit_haptic=False)
+    win.keyPressEvent(QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key_2, Qt.NoModifier))
+    assert win.wheel_sandbox._wheel_type == "tools"
+    assert "command" in win.sandbox_status.text().lower()
+    win.keyPressEvent(QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key_3, Qt.NoModifier))
+    assert win.wheel_sandbox._wheel_type == "actions"
+    assert "control" in win.sandbox_status.text().lower()
+    win.keyPressEvent(QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key_4, Qt.NoModifier))
+    assert win.wheel_sandbox._sticky_locked is True
+    assert "sticky" in win.sandbox_status.text().lower()
+    win.keyPressEvent(QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key_Right, Qt.NoModifier))
+    assert win.wheel_sandbox._hovered_idx == 1
+    win.keyPressEvent(QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key_Escape, Qt.NoModifier))
+    assert win.wheel_sandbox._sticky_locked is False
+
+    w_cx, w_cy = win.wheel_sandbox.width() / 2.0, win.wheel_sandbox.height() / 2.0
+    win.wheel_sandbox.dropEvent(QDropEvent(QPointF(w_cx, w_cy), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier))
+    assert "sample_clip.mov" in win.sandbox_file_lbl.text()
+
+    # Active command bar renders structured command tokens without crashing across motion modes
+    win._on_hero_petal_hovered(2)
+    assert win.hero_status_lbl._cur_state["badge"] == "Documents"
+    assert win.hero_status_lbl._cur_state["primary"] == "deck_final.pdf"
+    assert win.hero_status_lbl._cur_state["arrow"] is True
+    assert not win.hero_status_lbl.grab().isNull()
+
+    monkeypatch.setattr(ob_mod, "should_reduce_motion", lambda: True)
+    win._on_hero_petal_hovered(0)
+    assert win.hero_status_lbl._swap_t == 1.0
+    assert win.hero_status_lbl._cur_state["badge"] == "Images & RAW"
+    win.close()
+
+
+def test_concurrent_jobs_reserve_unique_outputs_and_prevent_double_start(qapp, samples_dir: Path, tmp_path: Path):
+    """Concurrent same-stem jobs reserve unique output files instead of colliding."""
+    runner = JobRunner(max_threads=4)
+    j1 = ConversionJob(src_path=samples_dir / "sample.png", dest_ext="jpg", target_dir=tmp_path, overwrite=False)
+    j2 = ConversionJob(src_path=samples_dir / "sample.bmp", dest_ext="jpg", target_dir=tmp_path, overwrite=False)
+    runner.add_job(j1)
+    runner.add_job(j2)
+
+    runner.start_all()
+    # Second call while already in-flight must not duplicate active work
+    runner.start_job(j1.id)
+    assert runner.thread_pool.waitForDone(5000)
+    qapp.processEvents()
+
+    assert j1.status == JobStatus.SUCCESS
+    assert j2.status == JobStatus.SUCCESS
+    assert j1.dest_path is not None and j2.dest_path is not None
+    assert j1.dest_path != j2.dest_path
+    assert j1.dest_path.exists() and j2.dest_path.exists()
+
+
+def test_async_dependency_probe_updates_badges_without_blocking(qapp):
+    """SettingsPage probes tool versions in the background without blocking UI event handling."""
+    from PySide6.QtCore import QThreadPool
+
+    from filetool.ui.settings_page import SettingsPage
+
+    page = SettingsPage()
+    try:
+        page.refresh_dependency_status(run_version_probe=True)
+        assert page.rescan_btn.isEnabled() is False
+        assert "Checking" in page.rescan_btn.text()
+
+        assert QThreadPool.globalInstance().waitForDone(8000)
+        qapp.processEvents()
+
+        assert page.rescan_btn.isEnabled() is True
+        assert page.rescan_btn.text() == "Verify Installed Tools"
+        assert all(badge.text() in ("Installed",) or "brew install" in badge.text() for badge in page._dep_rows.values())
+    finally:
+        page.close()

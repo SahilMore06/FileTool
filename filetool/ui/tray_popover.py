@@ -9,7 +9,6 @@ from typing import Dict, List, Optional
 from PySide6.QtCore import (
     QEasingCurve,
     QPoint,
-    QPointF,
     QRect,
     QRectF,
     Qt,
@@ -63,6 +62,18 @@ def _format_trigger_chip(key_name: str, label: str) -> str:
 
 class _PopoverActionButton(QPushButton):
     """Custom-painted menu action row with smooth hover animation and keycap hint."""
+
+    _title_font = None
+    _sub_font = None
+    _key_font = None
+
+    @classmethod
+    def _fonts(cls):
+        if cls._title_font is None:
+            cls._title_font = QFont(".AppleSystemUIFont", 12, QFont.Weight.DemiBold)
+            cls._sub_font = QFont(".AppleSystemUIFont", 10, QFont.Weight.Normal)
+            cls._key_font = QFont(".AppleSystemUIFont", 11, QFont.Weight.Medium)
+        return cls._title_font, cls._sub_font, cls._key_font
 
     def __init__(
         self,
@@ -191,13 +202,12 @@ class _PopoverActionButton(QPushButton):
         right_reserve = 56
         text_w = max(80, self.width() - text_x - right_reserve)
 
-        title_font = QFont(".AppleSystemUIFont", 12, QFont.Weight.DemiBold)
+        title_font, sub_font, key_font = self._fonts()
         title_txt = QFontMetrics(title_font).elidedText(self._title, Qt.ElideRight, text_w)
         p.setFont(title_font)
         p.setPen(title_col)
         p.drawText(QRect(text_x, 6, text_w, 17), Qt.AlignLeft | Qt.AlignVCenter, title_txt)
 
-        sub_font = QFont(".AppleSystemUIFont", 10, QFont.Weight.Normal)
         sub_txt = QFontMetrics(sub_font).elidedText(self._subtitle, Qt.ElideRight, text_w)
         p.setFont(sub_font)
         p.setPen(sub_col)
@@ -208,7 +218,7 @@ class _PopoverActionButton(QPushButton):
             p.setBrush(QColor(t["bg_surface2"]))
             p.setPen(QPen(QColor(t["border"]), 1.0))
             p.drawRoundedRect(key_rect, 5.5, 5.5)
-            p.setFont(QFont(".AppleSystemUIFont", 11, QFont.Weight.Medium))
+            p.setFont(key_font)
             p.setPen(QColor(t["text_secondary"]))
             p.drawText(key_rect, Qt.AlignCenter, self._shortcut)
 
@@ -236,6 +246,7 @@ class TrayPopover(QWidget):
         self._wheel_enabled = True
         self._drag_hovering = False
         self._last_hide_ts: float = 0.0
+        self._theme_sig: Optional[tuple] = None
         self._action_buttons: List[_PopoverActionButton] = []
 
         self._open_anim = QVariantAnimation(self)
@@ -374,6 +385,11 @@ class TrayPopover(QWidget):
     def set_theme(self, dark_mode: bool, accent_key: str) -> None:
         self._dark_mode = dark_mode
         self._accent_key = accent_key
+        sig = (dark_mode, accent_key, self._wheel_enabled, self._drag_hovering)
+        if sig == self._theme_sig:
+            return
+        self._theme_sig = sig
+
         t = get_tokens(dark_mode, accent_key=accent_key)
         self.logo.set_accent_color(t["accent"])
         for btn in self._action_buttons:
@@ -411,6 +427,10 @@ class TrayPopover(QWidget):
                 padding: 4px 10px;
                 font-size: 11px;
                 font-weight: 600;
+            }}
+            QPushButton#trayWheelPill:focus {{
+                outline: none;
+                border: 1.5px solid {t['border_focus']};
             }}
             QFrame#trayTriggerCard {{
                 background-color: {drop_bg};
@@ -499,7 +519,7 @@ class TrayPopover(QWidget):
         if anchor_rect.isNull() or anchor_rect.width() == 0:
             screen = QGuiApplication.primaryScreen()
             avail = screen.availableGeometry() if screen else QRect(0, 32, 1440, 900)
-            cx = avail.right() - pw // 2 - 16
+            cx = avail.x() + avail.width() - pw // 2 - 16
             top_y = avail.top() + 4
         else:
             screen = (
@@ -508,11 +528,15 @@ class TrayPopover(QWidget):
             )
             avail = screen.availableGeometry() if screen else QRect(0, 32, 1440, 900)
             cx = anchor_rect.center().x()
-            top_y = max(anchor_rect.bottom() + 4, avail.top() + 2)
+            top_y = max(anchor_rect.y() + anchor_rect.height() + 4, avail.top() + 2)
 
-        x = max(avail.left() + 4, min(cx - pw // 2, avail.right() - pw - 4))
-        y = max(avail.top() + 2, min(top_y, avail.bottom() - ph - 4))
+        x = max(avail.left() + 4, min(cx - pw // 2, avail.x() + avail.width() - pw - 4))
+        y = max(avail.top() + 2, min(top_y, avail.y() + avail.height() - ph - 4))
         self._anchor_pos = QPoint(x, y)
+
+        focused = self.focusWidget()
+        if focused is not None and focused is not self:
+            focused.clearFocus()
 
         if should_reduce_motion():
             self.move(self._anchor_pos)
@@ -520,6 +544,7 @@ class TrayPopover(QWidget):
             self.show()
             self.raise_()
             self.activateWindow()
+            self.setFocus(Qt.PopupFocusReason)
             return
 
         self.setWindowOpacity(0.0)
@@ -527,6 +552,7 @@ class TrayPopover(QWidget):
         self.show()
         self.raise_()
         self.activateWindow()
+        self.setFocus(Qt.PopupFocusReason)
 
         self._open_anim.stop()
         self._open_anim.setStartValue(0.0)
@@ -572,6 +598,11 @@ class TrayPopover(QWidget):
             next_idx = (idx + step) % len(self._action_buttons)
             self._action_buttons[next_idx].setFocus()
             return
+        if key in (Qt.Key_Return, Qt.Key_Enter, Qt.Key_Space):
+            focused = self.focusWidget()
+            if isinstance(focused, QPushButton):
+                focused.click()
+                return
         if key == Qt.Key_O and (mods & Qt.ControlModifier or mods & Qt.MetaModifier):
             self._trigger_open()
             return

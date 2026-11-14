@@ -50,6 +50,7 @@ class ErrorDetailsDialog(QDialog):
         layout.addWidget(reason)
 
         if job.stderr_tail:
+            dark_tokens = get_tokens(True)
             lbl = QLabel("Tool Diagnostics (Stderr):")
             lbl.setStyleSheet("font-weight: 600; font-size: 12px; margin-top: 6px;")
             layout.addWidget(lbl)
@@ -58,7 +59,9 @@ class ErrorDetailsDialog(QDialog):
             log_box.setReadOnly(True)
             log_box.setPlainText(job.stderr_tail)
             log_box.setStyleSheet(
-                "background-color: #121214; color: #30D158; font-family: monospace; font-size: 11px;"
+                f"background-color: {dark_tokens['bg_main']}; "
+                f"color: {dark_tokens['success']}; "
+                "font-family: \"SF Mono\", Menlo, monospace; font-size: 11px;"
             )
             layout.addWidget(log_box)
 
@@ -205,16 +208,16 @@ class JobRow(QFrame):
         self.status_label.setText(status.value)
         self.progress_bar.setValue(self.job.progress)
 
+        is_convertible = getattr(self.job, "operation", "convert") == "convert"
         state = self._STATUS_VIEW_STATE.get(status)
         if state is None:
             show_progress, show_cancel, show_remove, show_reveal, show_details, obj_name = (
                 False, False, True, None, None, "mutedMeta",
             )
-            self.format_picker.setEnabled(getattr(self.job, "operation", "convert") == "convert")
+            self.format_picker.setEnabled(is_convertible)
         else:
             show_progress, show_cancel, show_remove, show_reveal, show_details, obj_name = state
-            if status == JobStatus.RUNNING:
-                self.format_picker.setEnabled(False)
+            self.format_picker.setEnabled(is_convertible and status == JobStatus.FAILED)
 
         self.progress_bar.setVisible(show_progress)
         self.cancel_btn.setVisible(show_cancel)
@@ -296,32 +299,6 @@ class JobListWidget(QScrollArea):
             row = self.rows.pop(job_id)
             self.layout.removeWidget(row)
             row.deleteLater()
-
-    def set_all_formats(self, in_ext: str, out_ext: str) -> None:
-        """Update destination format for all jobs sharing an input extension."""
-        for row in self.rows.values():
-            row_in = row.job.src_path.suffix.lower().lstrip(".")
-            if row_in == in_ext and row.job.status == JobStatus.PENDING:
-                idx = row.format_picker.findData(out_ext)
-                if idx >= 0:
-                    row.format_picker.setCurrentIndex(idx)
-
-    _FILTER_STATUS_MAP = {
-        "pending": JobStatus.PENDING,
-        "running": JobStatus.RUNNING,
-        "completed": JobStatus.SUCCESS,
-        "failed": JobStatus.FAILED,
-    }
-
-    def apply_filter(self, status_filter: str = "all", query: str = "") -> None:
-        """Filter visible rows by status category and search substring."""
-        norm_status = status_filter.strip().lower()
-        target_status = self._FILTER_STATUS_MAP.get(norm_status)
-        q = query.strip().lower()
-        for row in self.rows.values():
-            status_match = norm_status == "all" or row.job.status == target_status
-            name_match = not q or q in row.job.filename.lower() or q in row.job.dest_ext.lower()
-            row.setVisible(status_match and name_match)
 
     def set_dark_mode(self, is_dark: bool) -> None:
         for row in self.rows.values():

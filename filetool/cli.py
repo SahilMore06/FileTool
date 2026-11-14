@@ -16,14 +16,7 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 # Ensure all engines are loaded and registered
-import filetool.core.engines.archives  # noqa: F401
-import filetool.core.engines.images  # noqa: F401
-import filetool.core.engines.media  # noqa: F401
-import filetool.core.engines.office  # noqa: F401
-import filetool.core.engines.pandoc_docs  # noqa: F401
-import filetool.core.engines.pdf  # noqa: F401
-import filetool.core.engines.spreadsheets  # noqa: F401
-import filetool.core.engines.subtitles  # noqa: F401
+import filetool.core  # noqa: F401
 from filetool.core.deps import check_dependencies, format_dependency_report
 from filetool.core.registry import registry
 from filetool.core.utils import get_unique_output_path, setup_logging

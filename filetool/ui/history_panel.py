@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -60,11 +61,16 @@ class HistoryPanel(QFrame):
         self.table.verticalHeader().setVisible(False)
         self.table.setShowGrid(False)
         self.table.setAlternatingRowColors(True)
+        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self._max_entries = 500
 
         layout.addWidget(self.table)
 
     def add_entry(self, src: Path, dest: Path) -> None:
         """Append a completed conversion row to the history table."""
+        if self.table.rowCount() >= self._max_entries:
+            self.table.removeRow(0)
         row = self.table.rowCount()
         self.table.insertRow(row)
 
