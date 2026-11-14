@@ -18,6 +18,8 @@ Fluxora pairs a PySide6 batch desktop window and command-line tool with a non-ac
 
 ![Fluxora – Intelligent File Conversion & Productivity Suite Showcase](docs/assets/fluxora_showcase.webp)
 
+---
+
 ![Fluxora radial drag wheels in light and dark mode](docs/assets/drag_wheel_showcase.png)
 
 ## Why Fluxora
