@@ -50,6 +50,7 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pyinstaller>=6.3.0",
+    "dmgbuild>=1.6.0; sys_platform == 'darwin'",
 ]
 
 [project.scripts]

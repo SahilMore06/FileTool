@@ -30,6 +30,10 @@ else
 fi
 
 echo "Using PyInstaller: ${PYINSTALLER}"
+PYTHON_BIN="$(dirname "${PYINSTALLER}")/python"
+if [[ ! -x "${PYTHON_BIN}" ]]; then
+    PYTHON_BIN="$(command -v python3)"
+fi
 
 echo "Cleaning previous build artifacts..."
 rm -rf build dist FileTool.spec Fluxora.spec
@@ -124,9 +128,155 @@ echo "Creating downloadable distribution packages (ZIP and DMG)..."
     ditto -c -k --keepParent "Fluxora.app" "Fluxora.app.zip"
 
     if command -v hdiutil >/dev/null 2>&1; then
-        echo "Creating Fluxora.dmg..."
+        echo "Creating Fluxora.dmg (with Drag-to-Applications shortcut)..."
         rm -f "Fluxora.dmg"
-        hdiutil create -volname "Fluxora" -srcfolder "Fluxora.app" -ov -format UDZO "Fluxora.dmg"
+        if QT_QPA_PLATFORM=offscreen "${PYTHON_BIN}" -c "import dmgbuild, PySide6, PIL" >/dev/null 2>&1; then
+            QT_QPA_PLATFORM=offscreen "${PYTHON_BIN}" - "${ROOT_DIR}" <<'PYEOF'
+import sys
+import tempfile
+from pathlib import Path
+import dmgbuild
+from PIL import Image
+from PySide6.QtCore import Qt, QRectF, QPointF
+from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import (
+    QImage,
+    QPainter,
+    QPainterPath,
+    QColor,
+    QPen,
+    QLinearGradient,
+    QRadialGradient,
+    QFont,
+    QPolygonF,
+)
+
+root_dir = Path(sys.argv[1]).resolve()
+if str(root_dir) not in sys.path:
+    sys.path.insert(0, str(root_dir))
+from filetool.ui.components import create_brand_pixmap
+
+app = QApplication.instance() or QApplication([])
+
+def render_dmg_bg(scale: int, out_path: Path) -> None:
+    W, H = 660 * scale, 400 * scale
+    img = QImage(W, H, QImage.Format_ARGB32_Premultiplied)
+    p = QPainter(img)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setRenderHint(QPainter.TextAntialiasing)
+    p.setRenderHint(QPainter.SmoothPixmapTransform)
+    p.scale(scale, scale)
+
+    p.fillRect(QRectF(0, 0, 660, 400), QColor("#171819"))
+
+    p.save()
+    p.setPen(QPen(QColor(255, 255, 255, 7), 1.0))
+    for x in range(66, 660, 66):
+        p.drawLine(QPointF(x, 0), QPointF(x, 400))
+    for y in range(66, 400, 66):
+        p.drawLine(QPointF(0, y), QPointF(660, y))
+    p.restore()
+
+    glow = QRadialGradient(330, 190, 250)
+    glow.setColorAt(0.0, QColor(242, 138, 50, 42))
+    glow.setColorAt(0.6, QColor(242, 138, 50, 14))
+    glow.setColorAt(1.0, QColor(242, 138, 50, 0))
+    p.fillRect(QRectF(0, 0, 660, 400), glow)
+
+    for cx in (180, 480):
+        zone = QRectF(cx - 72, 190 - 76, 144, 152)
+        zp = QPainterPath()
+        zp.addRoundedRect(zone, 24, 24)
+        p.fillPath(zp, QColor(255, 255, 255, 6))
+        pen_style = Qt.DashLine if cx == 480 else Qt.SolidLine
+        p.setPen(QPen(QColor(242, 138, 50, 55 if cx == 480 else 32), 1.2, pen_style))
+        p.drawPath(zp)
+
+    p.save()
+    grad = QLinearGradient(280, 184, 380, 184)
+    grad.setColorAt(0.0, QColor(242, 138, 50, 90))
+    grad.setColorAt(1.0, QColor("#F28A32"))
+    p.setPen(QPen(grad, 3.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+    p.drawLine(QPointF(282, 184), QPointF(372, 184))
+
+    head = QPolygonF([
+        QPointF(364, 173),
+        QPointF(378, 184),
+        QPointF(364, 195),
+    ])
+    p.setPen(QPen(QColor("#F28A32"), 3.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+    p.drawPolyline(head)
+    p.restore()
+
+    pix = create_brand_pixmap(size=24, accent_color="#F28A32", dpr=float(scale * 2))
+    p.drawPixmap(QRectF(252, 34, 24, 24), pix, QRectF(pix.rect()))
+    f_title = QFont(".AppleSystemUIFont")
+    f_title.setPixelSize(16)
+    f_title.setWeight(QFont.Weight.Bold)
+    p.setFont(f_title)
+    p.setPen(QColor("#F1EFEA"))
+    p.drawText(QRectF(284, 34, 160, 24), Qt.AlignVCenter | Qt.AlignLeft, "Fluxora Installer")
+
+    pill = QRectF(195, 326, 270, 32)
+    pp = QPainterPath()
+    pp.addRoundedRect(pill, 16, 16)
+    p.fillPath(pp, QColor(32, 33, 35, 220))
+    p.setPen(QPen(QColor(242, 138, 50, 90), 1.0))
+    p.drawPath(pp)
+
+    f_sub = QFont(".AppleSystemUIFont")
+    f_sub.setPixelSize(13)
+    f_sub.setWeight(QFont.Weight.DemiBold)
+    p.setFont(f_sub)
+    p.setPen(QColor("#B4B1A9"))
+    p.drawText(pill, Qt.AlignCenter, "Drag Fluxora into Applications")
+
+    p.end()
+    tmp_png = out_path.with_suffix(".raw.png")
+    img.save(str(tmp_png))
+    pil_img = Image.open(tmp_png)
+    dpi_val = 72 * scale
+    pil_img.save(out_path, dpi=(dpi_val, dpi_val))
+    tmp_png.unlink(missing_ok=True)
+
+with tempfile.TemporaryDirectory() as td:
+    td_p = Path(td)
+    bg1 = td_p / "dmg_bg.png"
+    bg2 = td_p / "dmg_bg@2x.png"
+    render_dmg_bg(1, bg1)
+    render_dmg_bg(2, bg2)
+    icns_path = root_dir / "resources" / "Fluxora.icns"
+    settings = {
+        "format": "UDZO",
+        "size": None,
+        "files": ["Fluxora.app"],
+        "symlinks": {"Applications": "/Applications"},
+        "icon_locations": {
+            "Fluxora.app": (180, 184),
+            "Applications": (480, 184),
+        },
+        "background": str(bg1),
+        "window_rect": ((200, 120), (660, 428)),
+        "icon_size": 96,
+        "text_size": 13,
+        "show_status_bar": False,
+        "show_tab_view": False,
+        "show_toolbar": False,
+        "show_pathbar": False,
+        "show_sidebar": False,
+    }
+    if icns_path.is_file():
+        settings["icon"] = str(icns_path)
+    dmgbuild.build_dmg("Fluxora.dmg", "Fluxora", settings=settings)
+PYEOF
+        else
+            rm -rf dmg_stage
+            mkdir -p dmg_stage
+            cp -R "Fluxora.app" dmg_stage/
+            ln -s /Applications dmg_stage/Applications
+            hdiutil create -volname "Fluxora" -srcfolder "dmg_stage" -ov -format UDZO "Fluxora.dmg"
+            rm -rf dmg_stage
+        fi
     fi
 
     if command -v shasum >/dev/null 2>&1; then
