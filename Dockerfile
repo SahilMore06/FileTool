@@ -27,12 +27,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/fluxora
-COPY pyproject.toml LICENSE README.md ./
+COPY pyproject.toml ./
+
+# Install only headless CLI dependencies first so code edits reuse the cached wheel layer
+RUN python -c "import tomllib, subprocess, sys; deps=[d for d in tomllib.load(open('pyproject.toml','rb'))['project']['dependencies'] if not d.startswith(('PySide6','pyobjc-'))]; subprocess.check_call([sys.executable,'-m','pip','install','--no-cache-dir',*deps])"
+
+COPY LICENSE README.md ./
 COPY filetool ./filetool
 
-# Install only headless CLI dependencies (skip macOS Cocoa/Quartz and Qt GUI wheels)
-RUN python -c "import tomllib, subprocess, sys; deps=[d for d in tomllib.load(open('pyproject.toml','rb'))['project']['dependencies'] if not d.startswith(('PySide6','pyobjc-'))]; subprocess.check_call([sys.executable,'-m','pip','install','--no-cache-dir',*deps])" \
-    && pip install --no-cache-dir --no-deps . \
+RUN pip install --no-cache-dir --no-deps . \
     && fluxora --help >/dev/null \
     && python -c "import filetool.cli, filetool.core; assert len(filetool.core.registry.registry.all_supported_pairs()) >= 260"
 

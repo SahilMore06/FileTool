@@ -103,7 +103,7 @@ Begin dragging one or more files or folders in Finder and press a modifier key t
 
 ### Engineering Details
 
-- **Zero Accessibility Permissions**: `MacDragMonitor` polls `NSPasteboard` (`NSDragPboard`) change counts dynamically (10 Hz idle, 60 Hz during primary mouse drags) alongside a passive Quartz `CGEventTap` (`kCGEventFlagsChanged` and key events).
+- **Zero Accessibility Permissions**: `MacDragMonitor` polls `NSPasteboard` (`NSDragPboard`) change counts dynamically (20 Hz idle, 60 Hz during primary mouse drags) alongside a passive Quartz `CGEventTap` (`kCGEventFlagsChanged` and key events).
 - **Non-Activating Overlay**: The wheel runs inside an `NSWindow` at `NSStatusWindowLevel` across all Spaces and full-screen apps so Finder retains active drag focus.
 - **Force Touch Haptics & Audio**: Supported MacBook trackpads receive `NSHapticFeedbackManager` ticks (`alignment` across petal boundaries and theme switches, `level_change` on click and job completion) synchronized with subtle `NSSound` cues.
 - **Non-Destructive Defaults**: New files are written next to the source item with incremental numeric suffixes (`report (1).pdf`) unless overwrite or a custom output folder is enabled in Settings.

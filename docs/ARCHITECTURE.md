@@ -8,7 +8,7 @@ Diagrams:
 
 ## 1. Platform Layer (`filetool/platform/`)
 
-- **`mac_drag_monitor.py`**: Runs an adaptive Qt timer polling loop (10 Hz idle, 60 Hz active button press) paired with a Quartz `CGEventTap` (`kCGEventFlagsChanged` / `KeyDown`). Drag detection monitors `NSPasteboard` change counts (`NSDragPboard`) while the primary mouse button moves past a threshold, fetching file URLs without needing Accessibility permissions.
+- **`mac_drag_monitor.py`**: Runs an adaptive Qt timer polling loop (20 Hz idle, 60 Hz active button press) paired with a Quartz `CGEventTap` (`kCGEventFlagsChanged` / `KeyDown`). Drag detection monitors `NSPasteboard` change counts (`NSDragPboard`) while the primary mouse button moves past a threshold, fetching file URLs without needing Accessibility permissions.
 - **`mac_window.py`**: Configures the wheel overlay as a frameless, non-activating `NSWindow` (`NSStatusWindowLevel`) that joins all Spaces and full-screen apps so Finder never loses drag focus. Guards non-Cocoa QPA platforms safely for headless testing.
 - **`mac_actions.py`**: Bridges Finder Reveal, AirDrop sharing (`NSSharingService`), always-on-top floating preview windows, clipboard file copy, terminal launch, AppKit `NSSound`, `NSHapticFeedbackManager`, and macOS user notifications.
 

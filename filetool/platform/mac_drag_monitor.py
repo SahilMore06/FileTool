@@ -345,7 +345,7 @@ class DragStateMachine:
 class MacDragMonitor(QObject):
     """
     Live monitor running on Qt event loop.
-    Polls at 60 Hz when button is down, 10 Hz when idle.
+    Polls at 60 Hz when button is down, 20 Hz when idle.
     """
 
     wheel_triggered = Signal(str, float, float, list)  # wheel_type, mouse_x, mouse_y, files
