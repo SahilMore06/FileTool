@@ -2,6 +2,7 @@
 
 **Fluxora – Intelligent File Conversion & Productivity Suite** for macOS. Offline batch file conversion, compression, quick tools, and cursor radial drag utilities.
 
+[![Website](https://img.shields.io/badge/website-fluxora.live-F28A32)](https://www.fluxora.live/)
 [![CI](https://github.com/SahilMore06/Fluxora/actions/workflows/ci.yml/badge.svg)](https://github.com/SahilMore06/Fluxora/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/SahilMore06/Fluxora?label=download)](https://github.com/SahilMore06/Fluxora/releases/latest)
 [![GitHub Package](https://img.shields.io/badge/ghcr.io-fluxora-24292F?logo=docker&logoColor=white)](https://github.com/SahilMore06/Fluxora/pkgs/container/fluxora)
@@ -9,7 +10,7 @@
 [![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E87410)](LICENSE)
 
-[Showcase](#launch-showcase) · [Why Fluxora](#why-fluxora) · [Download](#download-and-installation) · [Drag Wheel](#finder-drag-wheel) · [Desktop App](#desktop-window-and-onboarding) · [Quick Tools](#quick-tools-and-native-actions) · [Supported Formats](#supported-formats-and-backends) · [CLI](#command-line-interface) · [Architecture](#architecture-and-project-layout)
+[Website](https://www.fluxora.live/) · [Showcase](#launch-showcase) · [Why Fluxora](#why-fluxora) · [Download](#download-and-installation) · [Drag Wheel](#finder-drag-wheel) · [Desktop App](#desktop-window-and-onboarding) · [Quick Tools](#quick-tools-and-native-actions) · [Supported Formats](#supported-formats-and-backends) · [CLI](#command-line-interface) · [Architecture](#architecture-and-project-layout)
 
 ---
 
@@ -37,7 +38,7 @@ Fluxora pairs a PySide6 batch desktop window and command-line tool with a non-ac
 
 ### Option 1: Download Pre-Built macOS App
 
-Download the latest packaged application bundle directly from [GitHub Releases](https://github.com/SahilMore06/Fluxora/releases/latest):
+Download the latest packaged application bundle from [fluxora.live](https://www.fluxora.live/) or [GitHub Releases](https://github.com/SahilMore06/Fluxora/releases/latest):
 
 | Package | Direct Download | Target | Notes |
 | :--- | :--- | :--- | :--- |
@@ -270,7 +271,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest -v
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md), [SECURITY.md](SECURITY.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), [PRIVACY.md](PRIVACY.md), and [TERMS.md](TERMS.md) for contributor workflows, release notes, security practices, and policy terms.
 
-If Fluxora saves you time on macOS, starring the repository or opening bug reports and format requests in [GitHub Issues](https://github.com/SahilMore06/Fluxora/issues) helps prioritize future converters and releases.
+Visit [fluxora.live](https://www.fluxora.live/), star the repository, or open bug reports and format requests in [GitHub Issues](https://github.com/SahilMore06/Fluxora/issues) to help shape upcoming converters and releases.
 
 ## License
 

@@ -45,7 +45,7 @@ jobs:
           name: Fluxora ${{ inputs.tag || github.ref_name }} - Intelligent File Conversion & Productivity Suite
           generate_release_notes: true
           body: |
-            Offline batch file conversion, compression, and cursor radial drag utilities for macOS.
+            Offline batch file conversion, compression, and cursor radial drag utilities for macOS — [fluxora.live](https://www.fluxora.live/).
 
             ### Why Fluxora
 
