@@ -47,7 +47,7 @@ Download the latest packaged application bundle from [fluxora.live](https://www.
 | **Checksums** | [View `SHA256SUMS.txt` & Release Notes](https://github.com/SahilMore06/Fluxora/releases/latest) | All builds | Verify downloads via `shasum -a 256 -c SHA256SUMS.txt` |
 
 <div align="center">
-  <img src="docs/assets/dmg_installer_showcase.png" alt="Fluxora macOS Drag-to-Applications DMG Installer" width="680" />
+  <img src="docs/assets/dmg_installer_showcase.webp" alt="Fluxora macOS Drag-to-Applications DMG Installer" width="680" />
 </div>
 
 #### First-Launch Setup on macOS
