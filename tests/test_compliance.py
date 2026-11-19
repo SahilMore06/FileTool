@@ -92,3 +92,54 @@ def test_license_audit_flags_unapproved_agpl_and_unknown_packages():
     assert notices.is_file()
     notices_text = notices.read_text(encoding="utf-8")
     assert "PySide6" in notices_text and "pymupdf" in notices_text and "Ghostscript" in notices_text
+
+
+FORBIDDEN_NET_MODULES = {
+    "urllib.request",
+    "http",
+    "http.client",
+    "requests",
+    "httpx",
+    "aiohttp",
+    "socket",
+    "ftplib",
+    "smtplib",
+    "websockets",
+    "xmlrpc",
+}
+
+
+def _find_forbidden_network_imports(source: str, filename: str = "<memory>") -> list[str]:
+    import ast
+
+    hits: list[str] = []
+    tree = ast.parse(source, filename=filename)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                name = alias.name
+                if name in FORBIDDEN_NET_MODULES or name.split(".")[0] in FORBIDDEN_NET_MODULES:
+                    hits.append(f"{filename}:{node.lineno}:{name}")
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            mod = node.module
+            if mod in FORBIDDEN_NET_MODULES or mod.split(".")[0] in FORBIDDEN_NET_MODULES:
+                hits.append(f"{filename}:{node.lineno}:{mod}")
+    return hits
+
+
+def test_no_outbound_network_imports_in_filetool():
+    # Prove the detector catches real network imports while allowing urllib.parse
+    assert _find_forbidden_network_imports("import urllib.parse\n") == []
+    assert len(_find_forbidden_network_imports("import requests\n")) == 1
+    assert len(_find_forbidden_network_imports("from urllib.request import urlopen\n")) == 1
+    assert len(_find_forbidden_network_imports("import socket\n")) == 1
+
+    hits: list[str] = []
+    for path in sorted((REPO_ROOT / "filetool").rglob("*.py")):
+        hits.extend(
+            _find_forbidden_network_imports(
+                path.read_text(encoding="utf-8"),
+                filename=str(path.relative_to(REPO_ROOT)),
+            )
+        )
+    assert hits == [], f"Unexpected outbound network imports found in filetool/: {hits}"
