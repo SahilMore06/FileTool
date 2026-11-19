@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Optional
+from typing import Any, Optional
 
 ACCENT_PRESETS = {
     "amber": {
-        "label": "Tangerine",
+        "label": "Amber",
         "accent": "#F28A32",
         "accent_hover": "#F09B4E",
         "accent_pressed": "#D97520",
@@ -51,6 +51,25 @@ ACCENT_PRESETS = {
         "accent_text_dark": "#93A2BC",
     },
 }
+
+
+def normalize_accent_key(value: Optional[str]) -> str:
+    """Return a valid accent preset key, mapping legacy or unknown values to 'amber'."""
+    if not value:
+        return "amber"
+    cleaned = str(value).strip().lower()
+    if cleaned in ACCENT_PRESETS:
+        return cleaned
+    return "amber"
+
+
+def migrate_accent_setting(qsettings: Any, key: str = "accent_preset") -> str:
+    """Read accent preset from QSettings and persist normalized key if legacy data was stored."""
+    raw = qsettings.value(key, "amber", type=str)
+    normalized = normalize_accent_key(raw)
+    if raw and str(raw) != normalized:
+        qsettings.setValue(key, normalized)
+    return normalized
 
 TOKENS_LIGHT = {
     "bg_main": "#F3F2EF",

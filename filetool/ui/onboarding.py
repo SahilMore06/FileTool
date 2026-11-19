@@ -52,7 +52,7 @@ from filetool.ui.components import (
     collect_paths_from_urls,
     draw_vector_icon,
 )
-from filetool.ui.styles import ACCENT_PRESETS, get_stylesheet, get_tokens
+from filetool.ui.styles import ACCENT_PRESETS, get_stylesheet, get_tokens, migrate_accent_setting, normalize_accent_key
 from filetool.ui.wheel.animations import should_reduce_motion
 from filetool.ui.wheel.geometry import hit_test_radial, layout_segments
 from filetool.ui.wheel.wheel_painter import WheelPainter, WheelState, _lerp_color
@@ -2021,8 +2021,11 @@ class OnboardingWindow(QWidget):
         self.qsettings = qsettings if qsettings is not None else QSettings("Fluxora", "Fluxora")
         self._first_boot = bool(first_boot)
         self._dark_mode = bool(dark_mode) if dark_mode is not None else bool(self.qsettings.value("dark_mode", False, type=bool))
-        raw_accent = accent_key if accent_key is not None else str(self.qsettings.value("accent_preset", "amber", type=str) or "amber")
-        self._accent_key = raw_accent if raw_accent in ACCENT_PRESETS else "amber"
+        self._accent_key = (
+            normalize_accent_key(accent_key)
+            if accent_key is not None
+            else migrate_accent_setting(self.qsettings)
+        )
         self._tokens = get_tokens(self._dark_mode, accent_key=self._accent_key)
         self._current_step = max(0, min(2, int(initial_step)))
         self._legal_doc = "terms" if initial_legal_doc == "terms" else "privacy"

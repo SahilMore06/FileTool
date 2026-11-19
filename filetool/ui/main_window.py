@@ -39,7 +39,7 @@ from filetool.ui.history_panel import HistoryPanel
 from filetool.ui.job_list import JobListWidget
 from filetool.ui.options_panel import OptionsPanel
 from filetool.ui.settings_page import SettingsPage
-from filetool.ui.styles import ACCENT_PRESETS, get_stylesheet
+from filetool.ui.styles import ACCENT_PRESETS, get_stylesheet, migrate_accent_setting, normalize_accent_key
 
 logger = logging.getLogger("filetool.ui.main_window")
 
@@ -67,8 +67,7 @@ class MainWindow(QMainWindow):
 
         self.qsettings = QSettings("Fluxora", "Fluxora")
         self.dark_mode: bool = self.qsettings.value("dark_mode", False, type=bool)
-        accent_val = self.qsettings.value("accent_preset", "amber", type=str)
-        self.accent_key: str = accent_val if accent_val in ACCENT_PRESETS else "amber"
+        self.accent_key: str = migrate_accent_setting(self.qsettings)
 
         out_dir_str = self.qsettings.value("output_dir", "", type=str)
         self.custom_output_dir: Optional[Path] = Path(out_dir_str) if out_dir_str else None
@@ -267,10 +266,10 @@ class MainWindow(QMainWindow):
         self._apply_theme()
 
     def _on_accent_changed(self, accent_key: str) -> None:
-        if accent_key in ACCENT_PRESETS:
-            self.accent_key = accent_key
-            self.qsettings.setValue("accent_preset", accent_key)
-            self._apply_theme()
+        normalized = normalize_accent_key(accent_key)
+        self.accent_key = normalized
+        self.qsettings.setValue("accent_preset", normalized)
+        self._apply_theme()
 
     def _apply_theme(self) -> None:
         accent_hex = ACCENT_PRESETS[self.accent_key]["accent"]

@@ -23,7 +23,7 @@ from filetool.core.deps import TOOLS_METADATA, check_dependencies, resolver
 from filetool.core.legal import LEGAL_VERSION
 from filetool.platform.mac_actions import is_launch_at_login_enabled, set_launch_at_login, trigger_haptic_tick
 from filetool.ui.components import IOSSwitch
-from filetool.ui.styles import ACCENT_PRESETS, get_tokens
+from filetool.ui.styles import ACCENT_PRESETS, get_tokens, normalize_accent_key
 
 MODIFIER_KEYS = ["Shift", "Command", "Control", "Option"]
 
@@ -61,7 +61,7 @@ class SettingsPage(QScrollArea):
         self.setWidgetResizable(True)
         self.setFrameShape(QFrame.NoFrame)
         self._dark_mode = dark_mode
-        self._accent_key = accent_key if accent_key in ACCENT_PRESETS else "amber"
+        self._accent_key = normalize_accent_key(accent_key)
         self.qsettings = QSettings("Fluxora", "Fluxora")
         self._switches: list[IOSSwitch] = []
         self._swatch_btns: Dict[str, QPushButton] = {}
@@ -560,7 +560,7 @@ class SettingsPage(QScrollArea):
 
     def set_theme(self, dark_mode: bool, accent_key: str) -> None:
         self._dark_mode = dark_mode
-        self._accent_key = accent_key if accent_key in ACCENT_PRESETS else "amber"
+        self._accent_key = normalize_accent_key(accent_key)
         accent_hex = get_tokens(dark_mode, accent_key=self._accent_key)["accent"]
         for sw in self._switches:
             sw.set_dark_mode(dark_mode)
