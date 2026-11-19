@@ -1,8 +1,8 @@
 # Fluxora
 
-**Fluxora – Intelligent File Conversion & Productivity Suite** for macOS. Offline batch file conversion, compression, quick tools, and cursor radial drag utilities.
+**Open-source, offline file conversion and automation for macOS 13+.** Convert 266 format pairs locally from the desktop batch window, CLI, Docker container, or Finder drag overlay — with zero cloud uploads or telemetry.
 
-[![Website](https://img.shields.io/badge/website-fluxora.live-F28A32)](https://www.fluxora.live/)
+[![Website](https://img.shields.io/badge/website-fluxora.live-F28A32)](https://fluxora.live/)
 [![CI](https://github.com/SahilMore06/Fluxora/actions/workflows/ci.yml/badge.svg)](https://github.com/SahilMore06/Fluxora/actions/workflows/ci.yml)
 [![Latest Release](https://img.shields.io/github/v/release/SahilMore06/Fluxora?label=download)](https://github.com/SahilMore06/Fluxora/releases/latest)
 [![GitHub Package](https://img.shields.io/badge/ghcr.io-fluxora-24292F?logo=docker&logoColor=white)](https://github.com/SahilMore06/Fluxora/pkgs/container/fluxora)
@@ -10,35 +10,35 @@
 [![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-E87410)](LICENSE)
 
-[Website](https://www.fluxora.live/) · [Showcase](#launch-showcase) · [Why Fluxora](#why-fluxora) · [Download](#download-and-installation) · [Drag Wheel](#finder-drag-wheel) · [Desktop App](#desktop-window-and-onboarding) · [Quick Tools](#quick-tools-and-native-actions) · [Supported Formats](#supported-formats-and-backends) · [CLI](#command-line-interface) · [Architecture](#architecture-and-project-layout)
+[Website](https://fluxora.live/) · [Showcase](#launch-showcase) · [Why Fluxora](#why-fluxora) · [Download](#download-and-installation) · [Drag Wheel](#finder-drag-wheel) · [Desktop App](#desktop-window-and-onboarding) · [Quick Tools](#quick-tools-and-native-actions) · [Supported Formats](#supported-formats-and-backends) · [CLI](#command-line-interface) · [Architecture](#architecture-and-project-layout)
 
 ---
 
-Fluxora pairs a PySide6 batch desktop window and command-line tool with a non-activating radial overlay that opens beneath your cursor while dragging files in Finder. Conversions and edits execute locally on your Mac through Pillow, FFmpeg, ImageMagick, Ghostscript, Pandoc, LibreOffice, and 7-Zip with zero network access, telemetry, or Accessibility permission prompts ([Privacy Policy](PRIVACY.md)).
+Fluxora combines a native PySide6 desktop batch converter, a scriptable CLI, a multi-arch Linux Docker image, and a non-activating macOS Finder drag overlay. Every conversion runs locally on your machine through Pillow, FFmpeg, ImageMagick, Ghostscript, Pandoc, LibreOffice, and 7-Zip, with zero outbound network calls verified by automated tests ([Privacy Policy](PRIVACY.md) · [Third-Party Notices](THIRD_PARTY_NOTICES.md)).
 
 <a id="launch-showcase"></a>
 
-![Fluxora – Intelligent File Conversion & Productivity Suite Showcase](docs/assets/fluxora_showcase.webp)
+![Fluxora offline macOS file converter and batch workflow showcase](docs/assets/fluxora_showcase.webp)
 
 ---
 
-![Fluxora radial drag wheels in light and dark mode](docs/assets/drag_wheel_showcase.png)
+![Fluxora Finder drag overlay in light and dark mode](docs/assets/drag_wheel_showcase.png)
 
 ## Why Fluxora
 
-| Common Mac File Friction | How Fluxora Handles It |
+| Common File Workflow Problem | How Fluxora Handles It |
 | :--- | :--- |
-| **Cloud Upload Privacy Risks** | Contracts, receipts, media, and documents process locally on your Mac with zero network requests or accounts. |
-| **Daily Caps, Wait Queues & Watermarks** | Unlimited batch conversions and tools offline under the MIT license. |
-| **Losing Finder Context** | Summon a cursor-centered radial wheel while dragging any file (`Shift`, `Command`, `Control`) instead of opening browser tabs or hunting through `~/Downloads`. |
-| **Accessibility Permission Prompts** | Uses passive Quartz modifier taps (`CGEventTap`) and `NSDragPboard` change counts without global Accessibility permissions or keystroke logging. |
-| **Destructive Overwrites** | Source files stay untouched and existing targets append numeric increments (`report (1).pdf`) unless overwrite is enabled in Settings. |
+| **Sensitive Files Leaving Your Mac** | Documents, images, video, and archives convert strictly locally with zero telemetry, accounts, or outbound networking (enforced in CI via AST checks). |
+| **Web Converter Limits & Subscription Gates** | Unlimited offline batch processing under the [MIT License](LICENSE) on both Apple Silicon and Intel Macs. |
+| **Repetitive Manual Conversions** | Run single or batch jobs from the desktop queue, `fluxora` terminal CLI, or headless Docker container (`ghcr.io/sahilmore06/fluxora`). |
+| **Transparent macOS Input Scope** | Queries Quartz state APIs (`CGEventSourceButtonState`, `CGEventSourceFlagsState`, `CGEventSourceKeyState`) and `NSDragPboard` only while dragging — zero keystroke logging. |
+| **Accidental Overwrites** | Preserves originals by default and writes numbered outputs (`report (1).pdf`) unless overwrite is turned on in Settings. |
 
 ## Download and Installation
 
 ### Option 1: Download Pre-Built macOS App
 
-Download the latest packaged application bundle from [fluxora.live](https://www.fluxora.live/) or [GitHub Releases](https://github.com/SahilMore06/Fluxora/releases/latest):
+Download the latest packaged application bundle from [fluxora.live](https://fluxora.live/) or [GitHub Releases](https://github.com/SahilMore06/Fluxora/releases/latest):
 
 | Package | Direct Download | Target | Notes |
 | :--- | :--- | :--- | :--- |
@@ -108,7 +108,7 @@ Begin dragging one or more files or folders in Finder and press a modifier key t
 
 ### Engineering Details
 
-- **Zero Accessibility Permissions**: `MacDragMonitor` polls `NSPasteboard` (`NSDragPboard`) change counts dynamically (20 Hz idle, 60 Hz during primary mouse drags) alongside a passive Quartz `CGEventTap` (`kCGEventFlagsChanged` and key events).
+- **Quartz Drag State Detection**: `MacDragMonitor` polls `NSPasteboard` (`NSDragPboard`) change counts dynamically (20 Hz idle, 60 Hz during primary mouse drags) alongside Quartz `CGEventSource` state queries (`CGEventSourceButtonState`, `CGEventSourceFlagsState`, `CGEventSourceKeyState`). See [docs/TRADEMARK_AND_PERMISSIONS_CHECK.md](docs/TRADEMARK_AND_PERMISSIONS_CHECK.md) for clean-account permission tracking.
 - **Non-Activating Overlay**: The wheel runs inside an `NSWindow` at `NSStatusWindowLevel` across all Spaces and full-screen apps so Finder retains active drag focus.
 - **Force Touch Haptics & Audio**: Supported MacBook trackpads receive `NSHapticFeedbackManager` ticks (`alignment` across petal boundaries and theme switches, `level_change` on click and job completion) synchronized with subtle `NSSound` cues.
 - **Non-Destructive Defaults**: New files are written next to the source item with incremental numeric suffixes (`report (1).pdf`) unless overwrite or a custom output folder is enabled in Settings.
@@ -127,7 +127,7 @@ Completed conversions appear in the **History** tab with single-click `Reveal in
 
 ### Theming, Accessibility, and First-Boot Tour
 
-- **Light & Dark Design Tokens**: Centralized token stylesheets in `filetool/ui/styles.py` meet WCAG AA text contrast across Light and Dark modes with four accent presets (`Tangerine`, `Ocean`, `Emerald`, `Graphite`).
+- **Light & Dark Design Tokens**: Centralized token stylesheets in `filetool/ui/styles.py` meet WCAG AA text contrast across Light and Dark modes with four accent presets (`Amber`, `Ocean`, `Emerald`, `Graphite`).
 - **Reduced Motion**: Animations and transitions respect `prefers-reduced-motion` system settings.
 - **Starter Tour & Settings Validation**: Settings validates duplicate trigger modifiers and missing custom output directories, manages `Launch at Login` via a user LaunchAgent, inspects local binary health, and lets you replay the animated starter setup or review Privacy and Terms anytime.
 
@@ -236,7 +236,7 @@ filetool/
     tools/              Compress, crop, merge, metadata strip, resize, split, and trim
   platform/
     mac_actions.py      AirDrop, floating preview, clipboard/Finder actions, LaunchAgent, haptics, sound
-    mac_drag_monitor.py Passive Quartz `CGEventTap` + `NSDragPboard` drag state machine
+    mac_drag_monitor.py Quartz `CGEventSource` state polling + `NSDragPboard` drag state machine
     mac_window.py       Non-activating `NSStatusWindowLevel` overlay bridge
   ui/
     components.py       Animated emblem, vector icons, Force Touch switches, URL helpers
@@ -249,7 +249,7 @@ filetool/
     settings_page.py    Persistent `QSettings`, validation, accent swatches, and dependency view
     styles.py           WCAG AA Light/Dark design tokens and QSS generator
     tray_popover.py     Animated macOS menu-bar status card and quick-drop actions
-    wheel/              Tangerine-style radial geometry, painter, springs, and overlay window
+    wheel/              Radial overlay geometry, painter, springs, and window
 scripts/                Homebrew setup, PyInstaller `.dmg`/`.zip` builder, Quick Action installer
 tests/                  Pytest suite across engines, CLI, dependencies, drag monitor, wheel, and UI
 docs/                   Architecture docs, SVG/HTML system diagrams, and showcase captures
@@ -269,9 +269,9 @@ Run headless without a Cocoa display session:
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest -v
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md), [SECURITY.md](SECURITY.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), [PRIVACY.md](PRIVACY.md), and [TERMS.md](TERMS.md) for contributor workflows, release notes, security practices, and policy terms.
+See [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md), [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), [docs/LICENSE_REMEDIATION.md](docs/LICENSE_REMEDIATION.md), [SECURITY.md](SECURITY.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), [PRIVACY.md](PRIVACY.md), and [TERMS.md](TERMS.md) for contributor workflows, license notices, security practices, and policy terms.
 
-Visit [fluxora.live](https://www.fluxora.live/), star the repository, or open bug reports and format requests in [GitHub Issues](https://github.com/SahilMore06/Fluxora/issues) to help shape upcoming converters and releases.
+Visit [fluxora.live](https://fluxora.live/), star the repository, or open bug reports and format requests in [GitHub Issues](https://github.com/SahilMore06/Fluxora/issues) to help shape Fluxora 2.0.
 
 ## License
 

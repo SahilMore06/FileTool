@@ -60,7 +60,7 @@ filetool = "filetool.cli:main"
 filetool-gui = "filetool.app:main"
 
 [project.urls]
-Homepage = "https://www.fluxora.live/"
+Homepage = "https://fluxora.live/"
 Repository = "https://github.com/SahilMore06/Fluxora"
 Issues = "https://github.com/SahilMore06/Fluxora/issues"
 Changelog = "https://github.com/SahilMore06/Fluxora/blob/master/CHANGELOG.md"

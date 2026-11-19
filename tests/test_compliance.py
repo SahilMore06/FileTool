@@ -9,11 +9,16 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 def test_no_competitor_naming_in_wheel_onboarding_and_scripts():
     targets = [
-        REPO_ROOT / "filetool" / "ui" / "styles.py",
-        REPO_ROOT / "filetool" / "ui" / "wheel" / "geometry.py",
-        REPO_ROOT / "filetool" / "ui" / "wheel" / "wheel_painter.py",
-        REPO_ROOT / "filetool" / "ui" / "onboarding.py",
+        REPO_ROOT / "README.md",
+        REPO_ROOT / "PRIVACY.md",
+        REPO_ROOT / "TERMS.md",
+        REPO_ROOT / "pyproject.toml",
+        REPO_ROOT / "Dockerfile",
+        REPO_ROOT / ".github" / "workflows" / "release.yml",
+        *sorted((REPO_ROOT / "filetool").rglob("*.py")),
+        *sorted((REPO_ROOT / "scripts").glob("*.py")),
         *sorted((REPO_ROOT / "scripts").glob("*.sh")),
+        *[p for p in sorted((REPO_ROOT / "tests").rglob("*.py")) if p.name != "test_compliance.py"],
     ]
     offenders = [
         str(path.relative_to(REPO_ROOT))
@@ -146,10 +151,15 @@ def test_no_outbound_network_imports_in_filetool():
 
 
 def test_privacy_docs_match_quartz_polling_and_manifest_covers_resources():
-    for rel in ("PRIVACY.md", "filetool/core/legal.py"):
+    for rel in ("PRIVACY.md", "README.md", "filetool/core/legal.py"):
         text = (REPO_ROOT / rel).read_text(encoding="utf-8")
         assert "CGEventTap" not in text, f"{rel} still claims unused CGEventTap"
         assert "CGEventSource" in text, f"{rel} should document actual CGEventSource state queries"
+
+    for rel in ("README.md", "pyproject.toml", "Dockerfile", ".github/workflows/release.yml"):
+        text = (REPO_ROOT / rel).read_text(encoding="utf-8")
+        assert "www.fluxora.live" not in text, f"{rel} still uses non-canonical www.fluxora.live"
+        assert "https://fluxora.live" in text, f"{rel} should link to canonical https://fluxora.live"
 
     manifest = REPO_ROOT / "resources" / "ASSET_MANIFEST.md"
     assert manifest.is_file(), "Missing resources/ASSET_MANIFEST.md"

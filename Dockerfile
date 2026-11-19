@@ -1,7 +1,7 @@
 FROM python:3.12-slim-bookworm
 
 LABEL org.opencontainers.image.source="https://github.com/SahilMore06/Fluxora" \
-      org.opencontainers.image.url="https://www.fluxora.live/" \
+      org.opencontainers.image.url="https://fluxora.live/" \
       org.opencontainers.image.documentation="https://github.com/SahilMore06/Fluxora#command-line-interface" \
       org.opencontainers.image.title="Fluxora CLI" \
       org.opencontainers.image.description="Fluxora – Intelligent File Conversion & Productivity Suite headless CLI (266 offline format pairs)" \
