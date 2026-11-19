@@ -15,4 +15,4 @@ Fluxora runs offline on your Mac. Your files never leave your machine.
 
 ## Finder Drag Wheel
 
-When enabled, `MacDragMonitor` uses a passive Quartz `CGEventTap` (`kCGEventFlagsChanged`) to watch modifier key taps and reads `NSDragPboard` pasteboard file URLs only while a drag is active. No keystrokes or screen contents are recorded or stored.
+When enabled, `MacDragMonitor` queries macOS Quartz input state (`CGEventSourceButtonState`, `CGEventSourceFlagsState`, and `CGEventSourceKeyState` for Escape/Return/arrow wheel navigation) together with `NSEvent.mouseLocation` and `NSDragPboard` file URLs only while a file drag or wheel overlay is active. It does not install an input event tap, log keystrokes, or record typing, passwords, or screen contents. Permission behavior on clean macOS accounts is tracked in [docs/TRADEMARK_AND_PERMISSIONS_CHECK.md](docs/TRADEMARK_AND_PERMISSIONS_CHECK.md).

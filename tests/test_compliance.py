@@ -143,3 +143,21 @@ def test_no_outbound_network_imports_in_filetool():
             )
         )
     assert hits == [], f"Unexpected outbound network imports found in filetool/: {hits}"
+
+
+def test_privacy_docs_match_quartz_polling_and_manifest_covers_resources():
+    for rel in ("PRIVACY.md", "filetool/core/legal.py"):
+        text = (REPO_ROOT / rel).read_text(encoding="utf-8")
+        assert "CGEventTap" not in text, f"{rel} still claims unused CGEventTap"
+        assert "CGEventSource" in text, f"{rel} should document actual CGEventSource state queries"
+
+    manifest = REPO_ROOT / "resources" / "ASSET_MANIFEST.md"
+    assert manifest.is_file(), "Missing resources/ASSET_MANIFEST.md"
+    manifest_text = manifest.read_text(encoding="utf-8")
+    for asset in sorted((REPO_ROOT / "resources").iterdir()):
+        if asset.name == "ASSET_MANIFEST.md" or asset.name.startswith("."):
+            continue
+        assert asset.name in manifest_text, f"{asset.name} missing from resources/ASSET_MANIFEST.md"
+
+    checks_doc = REPO_ROOT / "docs" / "TRADEMARK_AND_PERMISSIONS_CHECK.md"
+    assert checks_doc.is_file(), "Missing docs/TRADEMARK_AND_PERMISSIONS_CHECK.md"

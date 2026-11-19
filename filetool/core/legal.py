@@ -39,8 +39,8 @@ PRIVACY_SECTIONS: List[Tuple[str, List[str]]] = [
     (
         "Finder Drag Wheel Privacy Scope",
         [
-            "When Finder Drag Wheel is enabled, MacDragMonitor uses a passive Quartz CGEventTap (kCGEventFlagsChanged) to notice Shift, Command, Control, or Option taps during drags.",
-            "It reads NSDragPboard file URLs only while an active drag is detected, without requiring Accessibility permission, and never records typing, passwords, or screen contents.",
+            "When Finder Drag Wheel is enabled, MacDragMonitor polls Quartz state APIs (CGEventSourceButtonState, CGEventSourceFlagsState, and CGEventSourceKeyState for wheel navigation keys) alongside NSEvent.mouseLocation during active drags.",
+            "It reads NSDragPboard file URLs only while a drag is active and never logs typing, passwords, or screen contents.",
         ],
     ),
 ]
