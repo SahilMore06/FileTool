@@ -56,3 +56,39 @@ def test_accent_preset_renamed_and_migrates_legacy_key(qapp, tmp_path):
     migrated = migrate_accent_setting(qs)
     assert migrated == "amber"
     assert qs.value("accent_preset", "", type=str) == "amber"
+
+
+def test_license_audit_flags_unapproved_agpl_and_unknown_packages():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "audit_licenses", REPO_ROOT / "scripts" / "audit_licenses.py"
+    )
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    assert mod.classify_license("MIT") == "permissive"
+    assert mod.classify_license("BSD-3-Clause") == "permissive"
+    assert mod.classify_license("LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only") == "weak-copyleft"
+    assert mod.classify_license("Dual Licensed - GNU AFFERO GPL 3.0 or Artifex Commercial License") == "strong-copyleft"
+    assert mod.classify_license("") == "unknown"
+
+    sample = [
+        {"name": "pypdf", "version": "6.21.1", "license": "BSD-3-Clause", "category": "permissive"},
+        {"name": "pymupdf", "version": "1.28.2", "license": "AGPL-3.0", "category": "strong-copyleft"},
+        {"name": "mysterypkg", "version": "0.1.0", "license": "UNKNOWN", "category": "unknown"},
+    ]
+    violations = mod.check_policy(sample, allowed_strong_copyleft=set())
+    assert any("pymupdf" in v for v in violations)
+    assert any("mysterypkg" in v for v in violations)
+    assert mod.check_policy(sample[:2], allowed_strong_copyleft={"pymupdf"}) == []
+
+    records = mod.collect_python_licenses()
+    assert len(records) >= 10
+    assert mod.check_policy(records) == []
+
+    notices = REPO_ROOT / "THIRD_PARTY_NOTICES.md"
+    assert notices.is_file()
+    notices_text = notices.read_text(encoding="utf-8")
+    assert "PySide6" in notices_text and "pymupdf" in notices_text and "Ghostscript" in notices_text
