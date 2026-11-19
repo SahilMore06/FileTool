@@ -12,49 +12,49 @@ RING1_OUTER_RADIUS: float = 119.52
 RING2_INNER_RADIUS: float = 124.0
 RING2_OUTER_RADIUS: float = 190.0
 
-# Tangerine exact geometry constants
-TANGERINE_INNER_RADIUS: float = 48.64
-TANGERINE_OUTER_RADIUS: float = 119.52
-TANGERINE_BACKDROP_RADIUS: float = 125.92
-TANGERINE_CORNER_RADIUS: float = 20.16
-TANGERINE_GAP: float = 4.0
-TANGERINE_LABEL_INNER: float = 40.0
-TANGERINE_WINDOW_SIZE: int = 340
+# Radial wheel geometry constants
+WHEEL_INNER_RADIUS: float = 48.64
+WHEEL_OUTER_RADIUS: float = 119.52
+WHEEL_BACKDROP_RADIUS: float = 125.92
+WHEEL_CORNER_RADIUS: float = 20.16
+WHEEL_GAP: float = 4.0
+WHEEL_LABEL_INNER: float = 40.0
+WHEEL_WINDOW_SIZE: int = 340
 
 # Gap angle between segments in degrees (visual separator)
 SEGMENT_GAP_DEG: float = 2.0
 
 
-def tangerine_angle(index: int, total: int) -> float:
-    """Tangerine petal angle: 12 o'clock (PI/2) minus clockwise steps."""
+def radial_angle(index: int, total: int) -> float:
+    """Radial petal angle: 12 o'clock (PI/2) minus clockwise steps."""
     return (math.pi if total == 3 else math.pi / 2.0) - math.pi * 2.0 * index / total
 
 
-def tangerine_be(radius: float, angle: float) -> Tuple[float, float]:
+def radial_point(radius: float, angle: float) -> Tuple[float, float]:
     """Cartesian (x, y) where angle 0 is +X and positive angles go counterclockwise."""
     return (math.cos(angle) * radius, -math.sin(angle) * radius)
 
 
-def tangerine_petal_pos(index: int, total: int) -> Tuple[float, float]:
-    """Centroid for label/icon placement matching Tangerine."""
-    r = TANGERINE_LABEL_INNER + (TANGERINE_OUTER_RADIUS - TANGERINE_LABEL_INNER) * 0.56
-    ang = tangerine_angle(index, total)
-    return tangerine_be(r, ang)
+def radial_petal_pos(index: int, total: int) -> Tuple[float, float]:
+    """Centroid for radial petal label and icon placement."""
+    r = WHEEL_LABEL_INNER + (WHEEL_OUTER_RADIUS - WHEEL_LABEL_INNER) * 0.56
+    ang = radial_angle(index, total)
+    return radial_point(r, ang)
 
 
-def hit_test_tangerine(dx: float, dy: float, n_items: int) -> int:
+def hit_test_radial(dx: float, dy: float, n_items: int) -> int:
     """Hit-test a point (dx, dy) relative to wheel center against petals. Returns index or -1."""
     dist = math.hypot(dx, dy)
-    if n_items <= 0 or dist < TANGERINE_INNER_RADIUS or dist > TANGERINE_OUTER_RADIUS + 4.0:
+    if n_items <= 0 or dist < WHEEL_INNER_RADIUS or dist > WHEEL_OUTER_RADIUS + 4.0:
         return -1
     angle = math.atan2(-dy, dx)
     sector_span = math.pi * 2.0 / n_items
-    first_angle = tangerine_angle(0, n_items)
+    first_angle = radial_angle(0, n_items)
     clockwise_offset = ((first_angle - angle) % (math.pi * 2.0) + math.pi * 2.0) % (math.pi * 2.0)
     index = round(clockwise_offset / sector_span) % n_items
-    target_angle = tangerine_angle(index, n_items)
+    target_angle = radial_angle(index, n_items)
     angular_delta = math.atan2(math.sin(angle - target_angle), math.cos(angle - target_angle))
-    half_gap = math.asin(min(0.95, TANGERINE_GAP / 2.0 / max(dist, 1.0)))
+    half_gap = math.asin(min(0.95, WHEEL_GAP / 2.0 / max(dist, 1.0)))
     if abs(angular_delta) > sector_span / 2.0 - half_gap:
         return -1
     return index
@@ -166,7 +166,7 @@ def hit_test(
 ) -> HitResult:
     """
     Hit-test a point (dx, dy) relative to wheel center.
-    Uses Tangerine petal hit testing.
+    Uses radial petal hit testing.
     """
     dist = math.hypot(dx, dy)
 
@@ -177,7 +177,7 @@ def hit_test(
         if not primary_segments:
             return HitResult(hit_type="outside")
         count = len(primary_segments)
-        idx = hit_test_tangerine(dx, dy, count)
+        idx = hit_test_radial(dx, dy, count)
         if 0 <= idx < count:
             return HitResult(hit_type="segment", index=idx, ring=1, segment=primary_segments[idx])
         if dist <= RING1_OUTER_RADIUS + 2.0:

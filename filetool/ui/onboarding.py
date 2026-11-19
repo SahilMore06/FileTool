@@ -54,7 +54,7 @@ from filetool.ui.components import (
 )
 from filetool.ui.styles import ACCENT_PRESETS, get_stylesheet, get_tokens
 from filetool.ui.wheel.animations import should_reduce_motion
-from filetool.ui.wheel.geometry import hit_test_tangerine, layout_segments
+from filetool.ui.wheel.geometry import hit_test_radial, layout_segments
 from filetool.ui.wheel.wheel_painter import WheelPainter, WheelState, _lerp_color
 
 
@@ -1774,7 +1774,7 @@ class _HapticWheelSandbox(QWidget):
 
     def _update_hover(self, pos: QPointF) -> None:
         cx, cy = self.width() / 2.0, self.height() / 2.0
-        hit = hit_test_tangerine(pos.x() - cx, pos.y() - cy, len(self._segments))
+        hit = hit_test_radial(pos.x() - cx, pos.y() - cy, len(self._segments))
         new_hover = hit if hit >= 0 else None
         if new_hover != self._hovered_idx:
             self._hovered_idx = new_hover

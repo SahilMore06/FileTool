@@ -29,15 +29,15 @@ from filetool.ui.wheel.geometry import (
     RING2_INNER_RADIUS,
     RING2_OUTER_RADIUS,
     SEGMENT_GAP_DEG,
-    TANGERINE_BACKDROP_RADIUS,
-    TANGERINE_CORNER_RADIUS,
-    TANGERINE_GAP,
-    TANGERINE_INNER_RADIUS,
-    TANGERINE_OUTER_RADIUS,
+    WHEEL_BACKDROP_RADIUS,
+    WHEEL_CORNER_RADIUS,
+    WHEEL_GAP,
+    WHEEL_INNER_RADIUS,
+    WHEEL_OUTER_RADIUS,
     SegmentArc,
-    tangerine_angle,
-    tangerine_be,
-    tangerine_petal_pos,
+    radial_angle,
+    radial_petal_pos,
+    radial_point,
 )
 
 logger = logging.getLogger("filetool.ui.wheel.painter")
@@ -309,7 +309,7 @@ class WheelPainter:
         """Decode and cache a circular HiDPI hub thumbnail ahead of animation frames."""
         if not file_path:
             return None
-        thumb_r = (TANGERINE_INNER_RADIUS - 6.0) - 3.5
+        thumb_r = (WHEEL_INNER_RADIUS - 6.0) - 3.5
         return self._get_cached_thumb(file_path, thumb_r, round(max(1.0, float(dpr)), 2))
 
     def _get_cached_thumb(self, file_path: str, thumb_r: float, dpr: float) -> Optional[QPixmap]:
@@ -381,7 +381,7 @@ class WheelPainter:
         self._file_icon_cache[cache_key] = scaled
         return scaled
 
-    def _cached_tangerine_petal(
+    def _cached_radial_petal(
         self, index: int, total: int, r_in: float, r_out: float, corner_r: float = 20.16, gap: float = 4.0
     ) -> QPainterPath:
         q_rin = round(r_in, 2)
@@ -390,7 +390,7 @@ class WheelPainter:
         cached = self._petal_path_cache.get(key)
         if cached is not None:
             return cached
-        path = self._build_tangerine_petal(index, total, q_rin, q_rout, corner_r, gap)
+        path = self._build_radial_petal(index, total, q_rin, q_rout, corner_r, gap)
         if len(self._petal_path_cache) >= 512:
             self._petal_path_cache.clear()
         self._petal_path_cache[key] = path
@@ -441,7 +441,7 @@ class WheelPainter:
         """Render cached ambient shadow halo and frosted backing disc beneath the petals."""
         dpr = self._painter_dpr(painter)
         cache_key = (bool(state.dark_mode), dpr)
-        disc_r = TANGERINE_BACKDROP_RADIUS
+        disc_r = WHEEL_BACKDROP_RADIUS
         halo_r = disc_r + 22.0
         half_logical = int(math.ceil(halo_r + 6.0))
 
@@ -467,7 +467,7 @@ class WheelPainter:
                 p.setBrush(QBrush(halo))
                 p.drawEllipse(QPointF(0, 3), halo_r, halo_r)
 
-                hole_r = TANGERINE_INNER_RADIUS - 2.0
+                hole_r = WHEEL_INNER_RADIUS - 2.0
                 path = QPainterPath()
                 path.addEllipse(QPointF(0, 0), disc_r, disc_r)
                 hole = QPainterPath()
@@ -575,8 +575,8 @@ class WheelPainter:
             if stagger <= 0.01:
                 continue
 
-            r_in = TANGERINE_INNER_RADIUS
-            r_out = TANGERINE_OUTER_RADIUS
+            r_in = WHEEL_INNER_RADIUS
+            r_out = WHEEL_OUTER_RADIUS
 
             if collapse_factor > 0.0:
                 r_out = r_out - (r_out - r_in) * collapse_factor
@@ -585,7 +585,7 @@ class WheelPainter:
                 scale_delta = (HOVER_SCALE - 1.0) * state.hover_progress
                 r_out += (r_out - r_in) * scale_delta
 
-            path = self._cached_tangerine_petal(i, n, r_in, r_out, TANGERINE_CORNER_RADIUS, TANGERINE_GAP)
+            path = self._cached_radial_petal(i, n, r_in, r_out, WHEEL_CORNER_RADIUS, WHEEL_GAP)
 
             if state.drop_state == "flash" and is_hovered:
                 flash_alpha = int(245 * (1.0 - state.drop_progress))
@@ -650,7 +650,7 @@ class WheelPainter:
         pos_key = (seg.index, total_items)
         pos = self._petal_pos_cache.get(pos_key)
         if pos is None:
-            pos = tangerine_petal_pos(seg.index, total_items)
+            pos = radial_petal_pos(seg.index, total_items)
             self._petal_pos_cache[pos_key] = pos
         cx, cy = pos
 
@@ -690,16 +690,16 @@ class WheelPainter:
         accent = QColor(state.accent_color)
 
         if state.drop_state == "progress":
-            self._draw_progress_ring(painter, TANGERINE_INNER_RADIUS - 4.0, state.job_progress, state)
+            self._draw_progress_ring(painter, WHEEL_INNER_RADIUS - 4.0, state.job_progress, state)
             return
         if state.drop_state == "done":
-            self._draw_done_indicator(painter, TANGERINE_INNER_RADIUS - 4.0, state)
+            self._draw_done_indicator(painter, WHEEL_INNER_RADIUS - 4.0, state)
             return
         if state.drop_state == "error":
-            self._draw_error_indicator(painter, TANGERINE_INNER_RADIUS - 4.0, state)
+            self._draw_error_indicator(painter, WHEEL_INNER_RADIUS - 4.0, state)
             return
 
-        hub_r = TANGERINE_INNER_RADIUS - 6.0
+        hub_r = WHEEL_INNER_RADIUS - 6.0
         hub_rect = QRectF(-hub_r, -hub_r, 2 * hub_r, 2 * hub_r)
         painter.save()
 
@@ -836,11 +836,11 @@ class WheelPainter:
         draw_vector_icon(painter, "close", -13.0, -13.0, 26.0, err)
 
     @staticmethod
-    def _build_tangerine_petal(
+    def _build_radial_petal(
         index: int, total: int, r_in: float, r_out: float, corner_r: float = 20.16, gap: float = 4.0
     ) -> QPainterPath:
         """Build a rounded petal path separated by constant-width radial gaps."""
-        center_ang = tangerine_angle(index, total)
+        center_ang = radial_angle(index, total)
         sector_span = math.pi * 2.0 / total
         left_edge = center_ang - sector_span / 2.0
         right_edge = center_ang + sector_span / 2.0
@@ -859,18 +859,18 @@ class WheelPainter:
         inner_side_r = inner_corner_r + r_in * math.tan(inner_fillet)
         outer_side_r = r_out - corner_r
 
-        p_in_left = tangerine_be(inner_side_r, left_edge + half_gap_angle(inner_side_r))
-        p_out_left = tangerine_be(outer_side_r, left_edge + half_gap_angle(outer_side_r))
-        c_out_left = tangerine_be(r_out, outer_start)
-        p_arc_out_start = tangerine_be(r_out, outer_start + outer_fillet)
-        p_arc_out_end = tangerine_be(r_out, outer_end - outer_fillet)
-        c_out_right = tangerine_be(r_out, outer_end)
-        p_out_right = tangerine_be(outer_side_r, right_edge - half_gap_angle(outer_side_r))
-        p_in_right = tangerine_be(inner_side_r, right_edge - half_gap_angle(inner_side_r))
-        c_in_right = tangerine_be(inner_corner_r, right_edge - half_gap_angle(inner_corner_r))
-        p_arc_in_end = tangerine_be(r_in, inner_end - inner_fillet)
-        p_arc_in_start = tangerine_be(r_in, inner_start + inner_fillet)
-        c_in_left = tangerine_be(inner_corner_r, left_edge + half_gap_angle(inner_corner_r))
+        p_in_left = radial_point(inner_side_r, left_edge + half_gap_angle(inner_side_r))
+        p_out_left = radial_point(outer_side_r, left_edge + half_gap_angle(outer_side_r))
+        c_out_left = radial_point(r_out, outer_start)
+        p_arc_out_start = radial_point(r_out, outer_start + outer_fillet)
+        p_arc_out_end = radial_point(r_out, outer_end - outer_fillet)
+        c_out_right = radial_point(r_out, outer_end)
+        p_out_right = radial_point(outer_side_r, right_edge - half_gap_angle(outer_side_r))
+        p_in_right = radial_point(inner_side_r, right_edge - half_gap_angle(inner_side_r))
+        c_in_right = radial_point(inner_corner_r, right_edge - half_gap_angle(inner_corner_r))
+        p_arc_in_end = radial_point(r_in, inner_end - inner_fillet)
+        p_arc_in_start = radial_point(r_in, inner_start + inner_fillet)
+        c_in_left = radial_point(inner_corner_r, left_edge + half_gap_angle(inner_corner_r))
 
         path = QPainterPath()
         path.moveTo(*p_in_left)
@@ -882,7 +882,7 @@ class WheelPainter:
         outer_steps = max(20, int(abs(outer_arc_end - outer_arc_start) * 48))
         for step in range(1, outer_steps):
             ang = outer_arc_start + (outer_arc_end - outer_arc_start) * (step / float(outer_steps))
-            path.lineTo(*tangerine_be(r_out, ang))
+            path.lineTo(*radial_point(r_out, ang))
         path.lineTo(*p_arc_out_end)
 
         path.quadTo(*c_out_right, *p_out_right)
@@ -894,7 +894,7 @@ class WheelPainter:
         inner_steps = max(16, int(abs(inner_arc_end - inner_arc_start) * 40))
         for step in range(1, inner_steps):
             ang = inner_arc_end - (inner_arc_end - inner_arc_start) * (step / float(inner_steps))
-            path.lineTo(*tangerine_be(r_in, ang))
+            path.lineTo(*radial_point(r_in, ang))
         path.lineTo(*p_arc_in_start)
 
         path.quadTo(*c_in_left, *p_in_left)

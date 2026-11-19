@@ -193,7 +193,7 @@ def render_dmg_bg(scale: int, out_path: Path) -> None:
         p.setPen(QPen(QColor(242, 138, 50, 65 if cx == 480 else 38), 1.3, pen_style))
         p.drawPath(zp)
 
-        # High-contrast warm Tangerine/Amber badge pill behind Finder's black icon label
+        # High-contrast warm Amber badge pill behind Finder's black icon label
         lbl_rect = QRectF(cx - 58, 212, 116, 26)
         lp = QPainterPath()
         lp.addRoundedRect(lbl_rect, 13, 13)
