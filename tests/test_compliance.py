@@ -151,7 +151,7 @@ def test_no_outbound_network_imports_in_filetool():
 
 
 def test_privacy_docs_match_quartz_polling_and_manifest_covers_resources():
-    for rel in ("PRIVACY.md", "README.md", "filetool/core/legal.py"):
+    for rel in ("PRIVACY.md", "README.md", "docs/ARCHITECTURE.md", "filetool/core/legal.py"):
         text = (REPO_ROOT / rel).read_text(encoding="utf-8")
         assert "CGEventTap" not in text, f"{rel} still claims unused CGEventTap"
         assert "CGEventSource" in text, f"{rel} should document actual CGEventSource state queries"
