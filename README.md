@@ -144,7 +144,7 @@ Completed conversions appear in the **History** tab with single-click `Reveal in
 
 ## Supported Formats and Backends
 
-Fluxora registers **266 conversion pairs** across **47 input extensions**, **39 output formats**, and **9 categories**.
+Fluxora registers **266 conversion pairs** across **47 input extensions**, **39 output formats**, and **9 categories** (browse the searchable matrix at [fluxora.live/formats](https://fluxora.live/formats), or step-by-step guides for [HEIC to JPG](https://fluxora.live/convert/heic-to-jpg), [MOV to MP4](https://fluxora.live/convert/mov-to-mp4), [PDF to DOCX](https://fluxora.live/convert/pdf-to-docx), [Compress PDF](https://fluxora.live/convert/compress-pdf), and [Strip Metadata](https://fluxora.live/convert/strip-exif-metadata)).
 
 | Category | Pairs | Input Extensions | Output Formats | Local Backends |
 | :--- | :---: | :--- | :--- | :--- |
@@ -163,6 +163,8 @@ Fluxora registers **266 conversion pairs** across **47 input extensions**, **39 
 `ToolResolver` searches the packaged bundle (`Contents/Resources/bin`), repo `resources/bin`, Apple Silicon Homebrew (`/opt/homebrew/bin`), Intel Homebrew (`/usr/local/bin`), `/usr/bin`, and `/Applications/LibreOffice.app/Contents/MacOS`, so standalone `.app` launches from Finder resolve tools reliably even without an interactive shell `$PATH`.
 
 ## Command-Line Interface
+
+Full flag reference and multi-arch Docker examples are also hosted at [fluxora.live/cli](https://fluxora.live/cli).
 
 ### Desktop App Options
 
