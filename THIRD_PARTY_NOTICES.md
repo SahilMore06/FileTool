@@ -34,7 +34,7 @@ This file inventories third-party Python packages detected in the build environm
 | `opencv-python-headless` | `5.0.0.93` | Apache 2.0 | `permissive` |
 | `openpyxl` | `3.1.5` | MIT | `permissive` |
 | `packaging` | `26.3` | Apache-2.0 OR BSD-2-Clause | `permissive` |
-| `pandas` | `3.0.6` | BSD 3-Clause License | `permissive` |
+| `pandas` | `3.0.6` | OSI Approved :: BSD License | `permissive` |
 | `pdf2docx` | `0.5.13` | MIT | `permissive` |
 | `pillow` | `13.0.0` | MIT-CMU | `permissive` |
 | `pillow_heif` | `1.8.1` | BSD-3-Clause | `permissive` |

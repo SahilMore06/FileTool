@@ -842,7 +842,7 @@ class _StarterInstallCanvas(QWidget):
         ("Video & Audio", "MOV → MP4", "demo_clip.mov → demo_clip.mp4 (9.4 MB)"),
         ("Documents", "Split PDF", "deck_final.pdf → 6 single pages (300 DPI)"),
         ("Compress", "-71% Size", "asset_bundle.png → quantized WebP (680 KB)"),
-        ("Drag Wheel", "Tap Shift", "Tap Shift → Quartz ready (no Accessibility prompt)"),
+        ("Drag Wheel", "Tap Shift", "Tap Shift → Quartz drag state ready locally"),
         ("100% Local", "Offline Mac", "Zero uploads → Originals stay untouched on Mac"),
     )
 
@@ -2501,7 +2501,7 @@ class OnboardingWindow(QWidget):
         ins_layout.addStretch()
 
         perm_note = QLabel(
-            "Uses Quartz drag events with zero Accessibility prompts. Press 1-4, modifier keys, or ← → to inspect."
+            "Uses Quartz CGEventSource drag state queries locally. Press 1-4, modifier keys, or ← → to inspect."
         )
         perm_note.setObjectName("onboardingRowSub")
         perm_note.setWordWrap(True)

@@ -19,7 +19,7 @@ All conversions, compression, media trimming, document exports, and metadata rem
 
 ## 4. macOS System Integrations
 
-- When **Enable Finder Drag Wheel** is on, Fluxora observes modifier key taps with a passive Quartz `CGEventTap` (`kCGEventFlagsChanged`) and reads `NSDragPboard` URLs only while a drag is in progress.
+- When **Enable Finder Drag Wheel** is on, Fluxora queries macOS Quartz `CGEventSource` state APIs (`CGEventSourceButtonState`, `CGEventSourceFlagsState`, `CGEventSourceKeyState`) and reads `NSDragPboard` URLs only while a drag is in progress.
 - When **Launch at Login** is enabled, Fluxora writes a local user LaunchAgent at `~/Library/LaunchAgents/com.fluxora.app.plist`.
 
 ## 5. Third-Party Conversion Tools

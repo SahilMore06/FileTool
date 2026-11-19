@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.metadata as md
+import re
 import sys
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set
@@ -82,6 +83,79 @@ EXTERNAL_BINARIES: List[Dict[str, str]] = [
 ]
 
 
+_PERMISSIVE_RE = re.compile(
+    r"\b(?:mit|mit-cmu|bsd|0bsd|bsd-2-clause|bsd-3-clause|apache|psf|psf-2\.0|isc|zlib|cc0|unlicense|hpnd)\b"
+    r"|python software foundation|first-party",
+    re.IGNORECASE,
+)
+_WEAK_COPYLEFT_RE = re.compile(
+    r"\b(?:lgpl(?:-[0-9.]+(?:-only|-or-later)?)?|mpl(?:-[0-9.]+)?)\b"
+    r"|lesser general public|mozilla public",
+    re.IGNORECASE,
+)
+_STRONG_COPYLEFT_RE = re.compile(
+    r"\b(?:agpl(?:-[0-9.]+(?:-only|-or-later)?)?|gpl(?:v?[0-9.]+(?:-only|-or-later)?)?|affero)\b"
+    r"|(?<!lesser )general public license",
+    re.IGNORECASE,
+)
+
+# Strictness order for AND conjunctions (higher = stricter)
+_AND_RANK = {
+    "permissive": 0,
+    "build-exception": 1,
+    "weak-copyleft": 2,
+    "unknown": 3,
+    "strong-copyleft": 4,
+}
+# Permissiveness order for OR disjunctions (lower = more permissive choice available)
+_OR_RANK = {
+    "permissive": 0,
+    "build-exception": 1,
+    "weak-copyleft": 2,
+    "strong-copyleft": 3,
+    "unknown": 4,
+}
+
+
+def _classify_atom(atom: str) -> str:
+    text = (atom or "").strip()
+    if not text or text.upper() == "UNKNOWN":
+        return "unknown"
+    lower = text.lower()
+    if "build tool only" in lower or "bootloader-exception" in lower:
+        return "build-exception"
+    if "affero" in lower or re.search(r"\bagpl\b", lower):
+        return "strong-copyleft"
+    if _WEAK_COPYLEFT_RE.search(text):
+        return "weak-copyleft"
+    if _STRONG_COPYLEFT_RE.search(text):
+        return "strong-copyleft"
+    if _PERMISSIVE_RE.search(text):
+        return "permissive"
+    return "unknown"
+
+
+def classify_license(license_text: str) -> str:
+    """Classify a license expression honoring word boundaries, AND conjunctions, and OR choices."""
+    text = (license_text or "").strip()
+    if not text or text.upper() == "UNKNOWN":
+        return "unknown"
+    if "build tool only" in text.lower() or "bootloader-exception" in text.lower():
+        return "build-exception"
+
+    or_branches = [b.strip() for b in re.split(r"\s+\bor\b\s+|;", text, flags=re.IGNORECASE) if b.strip()]
+    if not or_branches:
+        return "unknown"
+
+    branch_cats: List[str] = []
+    for branch in or_branches:
+        and_terms = [t.strip() for t in re.split(r"\s+\band\b\s+", branch, flags=re.IGNORECASE) if t.strip()]
+        term_cats = [_classify_atom(t) for t in and_terms] or ["unknown"]
+        branch_cats.append(max(term_cats, key=lambda c: _AND_RANK[c]))
+
+    return min(branch_cats, key=lambda c: _OR_RANK[c])
+
+
 def _extract_license_text(dist: md.Distribution) -> str:
     name_norm = (dist.metadata.get("Name") or "").strip().lower()
     if name_norm in FIRST_PARTY_NAMES:
@@ -99,59 +173,23 @@ def _extract_license_text(dist: md.Distribution) -> str:
         if c.startswith("License :: ")
     ]
     raw_license = (dist.metadata.get("License") or "").strip()
+    is_multiline = "\n" in raw_license
     first_line = raw_license.splitlines()[0].strip() if raw_license else ""
 
-    if first_line and first_line.lower() not in {"unknown", "dual license", "other/proprietary license"}:
-        if len(first_line) <= 100:
-            return first_line
-        return first_line[:97] + "..."
+    if (
+        first_line
+        and not is_multiline
+        and first_line.lower() not in {"unknown", "dual license", "other/proprietary license"}
+        and classify_license(first_line) != "unknown"
+    ):
+        return first_line if len(first_line) <= 100 else first_line[:97] + "..."
 
     if classifiers:
         return "; ".join(classifiers)
 
-    return first_line or "UNKNOWN"
-
-
-def classify_license(license_text: str) -> str:
-    """Classify a license string into permissive, weak-copyleft, build-exception, strong-copyleft, or unknown."""
-    text = (license_text or "").strip()
-    if not text or text.upper() == "UNKNOWN":
-        return "unknown"
-    lower = text.lower()
-
-    if "build tool only" in lower or "bootloader-exception" in lower:
-        return "build-exception"
-
-    # Strong copyleft must be checked before permissive substrings (except explicit dual/LGPL OR choices)
-    if "affero" in lower or "agpl" in lower:
-        return "strong-copyleft"
-
-    # Dual-licensed with permissive option (e.g. "Apache-2.0 OR GPL-2.0") or LGPL OR GPL
-    if "lgpl" in lower or "lesser general public" in lower or "mpl" in lower or "mozilla public" in lower:
-        return "weak-copyleft"
-
-    permissive_markers = (
-        "mit",
-        "bsd",
-        "apache",
-        "psf",
-        "python software foundation",
-        "isc",
-        "zlib",
-        "cc0",
-        "0bsd",
-        "unlicense",
-        "hpnd",
-        "first-party",
-    )
-    has_gpl = "gpl" in lower or "general public license" in lower
-    has_permissive = any(marker in lower for marker in permissive_markers)
-
-    if has_gpl and not (" or " in lower and has_permissive):
-        return "strong-copyleft"
-    if has_permissive:
-        return "permissive"
-    return "unknown"
+    if first_line:
+        return first_line if len(first_line) <= 100 else first_line[:97] + "..."
+    return "UNKNOWN"
 
 
 def collect_python_licenses() -> List[Dict[str, str]]:

@@ -10,7 +10,7 @@ LEGAL_VERSION = "1.0"
 PRIVACY_HIGHLIGHTS: List[Tuple[str, str]] = [
     ("100% Local Processing", "Every image, audio, video, PDF, and archive runs on your Mac. Zero uploads."),
     ("Zero Telemetry or Ads", "No analytics SDKs, no crash uploads, no tracking identifiers, and no cookies."),
-    ("No Accessibility Spying", "Drag Wheel checks NSDragPboard during active drags only; no keystrokes are logged."),
+    ("Local-Only Drag State", "Drag Wheel checks NSDragPboard during active drags only; no keystrokes are logged."),
 ]
 
 TERMS_HIGHLIGHTS: List[Tuple[str, str]] = [

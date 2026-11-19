@@ -77,7 +77,35 @@ def test_license_audit_flags_unapproved_agpl_and_unknown_packages():
     assert mod.classify_license("BSD-3-Clause") == "permissive"
     assert mod.classify_license("LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only") == "weak-copyleft"
     assert mod.classify_license("Dual Licensed - GNU AFFERO GPL 3.0 or Artifex Commercial License") == "strong-copyleft"
+    assert mod.classify_license("GPL-2.0 OR see LICENSE for permitted use") == "strong-copyleft"
+    assert mod.classify_license("Proprietary (submitted by author)") == "unknown"
+    assert mod.classify_license("LGPL-2.1 AND GPL-3.0") == "strong-copyleft"
+    assert mod.classify_license("MIT AND GPL-3.0") == "strong-copyleft"
+    assert mod.classify_license("MIT OR GPL-3.0") == "permissive"
     assert mod.classify_license("") == "unknown"
+
+    class _FakeMeta:
+        def __init__(self, data, classifiers):
+            self._data = data
+            self._classifiers = classifiers
+
+        def get(self, key, default=None):
+            return self._data.get(key, default)
+
+        def get_all(self, key, default=None):
+            return self._classifiers if key == "Classifier" else default
+
+    class _FakeDist:
+        def __init__(self, data, classifiers):
+            self.metadata = _FakeMeta(data, classifiers)
+            self.version = "1.0.0"
+
+    multiline_gpl = _FakeDist(
+        {"Name": "sneaky-pkg", "License": "Copyright (c) 2026 Example Corp.\nSee full terms below."},
+        ["License :: OSI Approved :: GNU General Public License v3 (GPLv3)"],
+    )
+    extracted = mod._extract_license_text(multiline_gpl)
+    assert mod.classify_license(extracted) == "strong-copyleft"
 
     sample = [
         {"name": "pypdf", "version": "6.21.1", "license": "BSD-3-Clause", "category": "permissive"},
@@ -99,19 +127,49 @@ def test_license_audit_flags_unapproved_agpl_and_unknown_packages():
     assert "PySide6" in notices_text and "pymupdf" in notices_text and "Ghostscript" in notices_text
 
 
+ALLOWED_URLLIB_SUBMODULES = {"urllib.parse", "urllib.error"}
+
 FORBIDDEN_NET_MODULES = {
+    "urllib",
     "urllib.request",
+    "urllib3",
     "http",
     "http.client",
     "requests",
     "httpx",
     "aiohttp",
     "socket",
+    "ssl",
     "ftplib",
     "smtplib",
     "websockets",
     "xmlrpc",
+    "pycurl",
+    "httplib2",
+    "PySide6.QtNetwork",
+    "sentry_sdk",
+    "posthog",
+    "mixpanel",
+    "amplitude",
+    "analytics",
+    "opentelemetry",
+    "bugsnag",
+    "rollbar",
+    "datadog",
 }
+
+
+def _is_forbidden_module(name: str) -> bool:
+    if name in ALLOWED_URLLIB_SUBMODULES or any(
+        name.startswith(f"{allowed}.") for allowed in ALLOWED_URLLIB_SUBMODULES
+    ):
+        return False
+    if name in FORBIDDEN_NET_MODULES:
+        return True
+    root = name.split(".")[0]
+    if root in FORBIDDEN_NET_MODULES:
+        return True
+    return any(name.startswith(f"{forbidden}.") for forbidden in FORBIDDEN_NET_MODULES)
 
 
 def _find_forbidden_network_imports(source: str, filename: str = "<memory>") -> list[str]:
@@ -122,21 +180,31 @@ def _find_forbidden_network_imports(source: str, filename: str = "<memory>") -> 
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                name = alias.name
-                if name in FORBIDDEN_NET_MODULES or name.split(".")[0] in FORBIDDEN_NET_MODULES:
-                    hits.append(f"{filename}:{node.lineno}:{name}")
+                if _is_forbidden_module(alias.name):
+                    hits.append(f"{filename}:{node.lineno}:{alias.name}")
         elif isinstance(node, ast.ImportFrom) and node.module:
             mod = node.module
-            if mod in FORBIDDEN_NET_MODULES or mod.split(".")[0] in FORBIDDEN_NET_MODULES:
+            for alias in node.names:
+                full = f"{mod}.{alias.name}"
+                if _is_forbidden_module(full):
+                    hits.append(f"{filename}:{node.lineno}:{full}")
+            if not node.names and _is_forbidden_module(mod):
                 hits.append(f"{filename}:{node.lineno}:{mod}")
     return hits
 
 
 def test_no_outbound_network_imports_in_filetool():
-    # Prove the detector catches real network imports while allowing urllib.parse
+    # Prove the detector catches direct, submodule, QtNetwork, and telemetry imports while allowing urllib.parse
     assert _find_forbidden_network_imports("import urllib.parse\n") == []
+    assert _find_forbidden_network_imports("from urllib.parse import unquote\n") == []
     assert len(_find_forbidden_network_imports("import requests\n")) == 1
     assert len(_find_forbidden_network_imports("from urllib.request import urlopen\n")) == 1
+    assert len(_find_forbidden_network_imports("from urllib import request\n")) == 1
+    assert len(_find_forbidden_network_imports("import urllib\n")) == 1
+    assert len(_find_forbidden_network_imports("from PySide6 import QtNetwork\n")) == 1
+    assert len(_find_forbidden_network_imports("import PySide6.QtNetwork\n")) == 1
+    assert len(_find_forbidden_network_imports("import urllib3\n")) == 1
+    assert len(_find_forbidden_network_imports("import sentry_sdk\n")) == 1
     assert len(_find_forbidden_network_imports("import socket\n")) == 1
 
     hits: list[str] = []
@@ -151,9 +219,37 @@ def test_no_outbound_network_imports_in_filetool():
 
 
 def test_privacy_docs_match_quartz_polling_and_manifest_covers_resources():
-    for rel in ("PRIVACY.md", "README.md", "docs/ARCHITECTURE.md", "filetool/core/legal.py"):
+    forbidden_claims = (
+        "cgeventtap",
+        "kcgeventflagschanged",
+        "kcgannotatedsession",
+        "quartz event tap",
+        "passive quartz tap",
+        "zero accessibility",
+        "no accessibility",
+    )
+    checked_docs = (
+        "PRIVACY.md",
+        "TERMS.md",
+        "SECURITY.md",
+        "README.md",
+        "docs/ARCHITECTURE.md",
+        "docs/diagrams/filetool_architecture.html",
+        "docs/diagrams/filetool_architecture.svg",
+        "docs/diagrams/filetool_interaction_flow.html",
+        "docs/diagrams/filetool_interaction_flow.svg",
+        "filetool/core/legal.py",
+        "filetool/ui/onboarding.py",
+        ".github/workflows/release.yml",
+    )
+    for rel in checked_docs:
         text = (REPO_ROOT / rel).read_text(encoding="utf-8")
-        assert "CGEventTap" not in text, f"{rel} still claims unused CGEventTap"
+        lower = text.lower()
+        for phrase in forbidden_claims:
+            assert phrase not in lower, f"{rel} still contains inaccurate claim {phrase!r}"
+
+    for rel in ("PRIVACY.md", "TERMS.md", "SECURITY.md", "README.md", "docs/ARCHITECTURE.md", "filetool/core/legal.py"):
+        text = (REPO_ROOT / rel).read_text(encoding="utf-8")
         assert "CGEventSource" in text, f"{rel} should document actual CGEventSource state queries"
 
     for rel in ("README.md", "pyproject.toml", "Dockerfile", ".github/workflows/release.yml"):

@@ -13,7 +13,7 @@ Fluxora is built for local execution on macOS:
 
 - **Offline Execution**: Zero outbound HTTP requests, update checks, telemetry beacons, or analytics collectors.
 - **No Shell Interpolation**: External CLI engines (`ffmpeg`, `magick`, `pandoc`, `pdftoppm`, `gs`, `soffice`, `7zz`) execute strictly with argument lists (`shell=False`).
-- **Passive Drag Detection**: `MacDragMonitor` uses a passive Quartz `CGEventTap` (`kCGEventFlagsChanged`) and `NSDragPboard` change counts without requiring Accessibility permissions or recording keyboard text.
+- **Local Drag State Detection**: `MacDragMonitor` queries Quartz `CGEventSource` state APIs (`CGEventSourceButtonState`, `CGEventSourceFlagsState`, `CGEventSourceKeyState`) and `NSDragPboard` change counts only during drags without logging keystrokes or screen contents.
 - **Non-Destructive Defaults**: Source files stay untouched and existing targets append numeric increments (`name (1).ext`) unless overwrite or delete-after-success is explicitly switched on in Settings.
 
 ## Reporting a Vulnerability

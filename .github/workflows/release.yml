@@ -50,7 +50,7 @@ jobs:
             ### Why Fluxora
 
             - **Local Execution**: Converts documents, images, audio, video, spreadsheets, and archives on your Mac with zero cloud uploads, accounts, file caps, or watermarks.
-            - **Zero Accessibility Permissions**: Uses passive Quartz modifier detection and `NSDragPboard` polling while keeping Finder drag focus intact.
+            - **Local Quartz Drag Detection**: Queries Quartz `CGEventSource` modifier state and `NSDragPboard` polling while keeping Finder drag focus intact.
             - **Safe Defaults**: Preserves original files and appends numeric increments (`name (1).ext`) unless overwrite is enabled in Settings.
 
             ### Installation for macOS
